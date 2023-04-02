@@ -13,9 +13,9 @@
 
 
 <script>
+const stackView     = [];
 const pUploadResult = document.getElementById("pUploadResult");
 const jsonView      = document.getElementById("jsonContent");
-const stackView     = [];
 
 function uploadJson() {
   const [file] = document.getElementById("btnUpload").files;
@@ -92,13 +92,11 @@ function drawView(data) {
 
 function drawViewNext(data, dataNext) {
   stackView.push(data);
-  console.log(stackView);
   drawView(dataNext);
 }
 
 function drawViewPrev() {
   const dataPrev = stackView.pop();
-  console.log(stackView);
   drawView(dataPrev);
 }
 
