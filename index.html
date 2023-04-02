@@ -4,18 +4,31 @@
   </head>
   <body>
     <h1>CBS JSON Explorer</h1>
-    <p>Please upload your JSON file.</p>
-    <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
-    <p id="pUploadResult"></p>
-    <ul id="jsonContent"></ul>
+    <div id="divUpload">
+      <p>Please upload your JSON file.</p>
+    </div id="divViewer">
+      <div id="divUpload">
+      <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+      <p id="pUploadResult"></p>
+      <div id="navDiv">
+        <h4 id="navView"></h4>
+        <input type="button" id="btnPrev" value="previous" hidden/>
+      </div>
+      <ul id="jsonView"></ul>
+    </div>
   </body>
 </html>
 
 
 <script>
 const stackView     = [];
+const stackKey      = [];
 const pUploadResult = document.getElementById("pUploadResult");
-const jsonView      = document.getElementById("jsonContent");
+const jsonView      = document.getElementById("jsonView");
+const btnPrev       = document.getElementById("btnPrev");
+
+// static event listeners
+document.getElementById("btnPrev").addEventListener("click", drawViewPrev);
 
 function uploadJson() {
   const [file] = document.getElementById("btnUpload").files;
@@ -41,6 +54,10 @@ function parseInput(reader) {
 
 function drawView(data) {
   clearView();
+  if (data === null) {
+    jsonView.innerHTML = "Object is empty.";
+    return;
+  }
   keys = Object.keys(data);
   for (let i=0; i<keys.length; i++) {
     const val = data[keys[i]];
@@ -57,22 +74,23 @@ function drawView(data) {
         if ((!Array.isArray(x)) && typeof(x) === "object") {
           const href = document.createElement("a");
           href.setAttribute("href", "#");
-          href.innerHTML = `Object ${val_idx}`;
+          viewName = `${keys[i]} ${val_idx}`;
+          href.innerHTML = viewName;
           liArr.appendChild(href);
-          liArr.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]][val_idx]));
+          liArr.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]][val_idx], viewName));
         } else {
           liArr.innerHTML = x;
         }
         ulArr.appendChild(liArr);
         li.appendChild(ulArr);
       }
-    } else if (typeof(val) === "object") {
+    } else if (typeof(val) === "object" && val !== null) {
       // another json object
       const href = document.createElement("a");
       href.setAttribute("href", "#");
       href.innerHTML = keys[i];
       li.appendChild(href);
-      li.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]]));
+      li.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]], keys[i]));
     } else {
       // is regular value
       li.innerHTML = `${keys[i]}: ${val}`;
@@ -80,23 +98,24 @@ function drawView(data) {
     jsonView.appendChild(li);
   }
 
-  if (stackView.length > 0) {
-    const btnPrev = document.createElement("input");
-    btnPrev.setAttribute("type", "button");
-    btnPrev.setAttribute("id", "prev");
-    btnPrev.setAttribute("value", "Previous");
-    jsonView.appendChild(btnPrev);
-    document.getElementById("prev").addEventListener("click", drawViewPrev);
+  if (stackView.length === 0) {
+    btnPrev.hidden = true;
+    navView.innerHTML = "";
+  } else {
+    btnPrev.hidden = false;
+    navView.innerHTML = stackKey.join(" > ");
   }
 }
 
-function drawViewNext(data, dataNext) {
+function drawViewNext(data, dataNext, keyView) {
   stackView.push(data);
+  stackKey.push(keyView);
   drawView(dataNext);
 }
 
 function drawViewPrev() {
   const dataPrev = stackView.pop();
+  stackKey.pop()
   drawView(dataPrev);
 }
 
