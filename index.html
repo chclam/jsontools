@@ -1,0 +1,109 @@
+<html>
+  <head>
+  <title>CBS JSON Explorer</title>
+  </head>
+  <body>
+    <h1>CBS JSON Explorer</h1>
+    <p>Please upload your JSON file.</p>
+    <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+    <p id="pUploadResult"></p>
+    <ul id="jsonContent"></ul>
+  </body>
+</html>
+
+
+<script>
+const pUploadResult = document.getElementById("pUploadResult");
+const jsonView      = document.getElementById("jsonContent");
+const stackView     = [];
+
+function uploadJson() {
+  const [file] = document.getElementById("btnUpload").files;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => { parseInput(reader); }, false);
+  if (file) {
+    reader.readAsText(file);
+  }
+}
+
+function parseInput(reader) {
+  clearView();
+  try {
+    jsonData = JSON.parse(reader.result); 
+  } catch (e) {
+    pUploadResult.textContent = `Parse FAILED: ${e}`;
+    pUploadResult.textContent += "Please upload a valid JSON file.";
+    return;
+  }
+  pUploadResult.textContent = "Parse SUCCESS";
+  drawView(jsonData)
+}
+
+function drawView(data) {
+  clearView();
+  keys = Object.keys(data);
+  for (let i=0; i<keys.length; i++) {
+    const val = data[keys[i]];
+    const li = document.createElement("li");
+    li.setAttribute("id", keys[i]);
+    if (Array.isArray(val)) {
+      // is array
+      li.innerHTML = `${keys[i]}`;
+      const ulArr = document.createElement("ul");
+      for (let val_idx in val) {
+        const x = val[val_idx];
+        // what if each element is also an object?
+        const liArr = document.createElement("li");
+        if ((!Array.isArray(x)) && typeof(x) === "object") {
+          const href = document.createElement("a");
+          href.setAttribute("href", "#");
+          href.innerHTML = `Object ${val_idx}`;
+          liArr.appendChild(href);
+          liArr.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]][val_idx]));
+        } else {
+          liArr.innerHTML = x;
+        }
+        ulArr.appendChild(liArr);
+        li.appendChild(ulArr);
+      }
+    } else if (typeof(val) === "object") {
+      // another json object
+      const href = document.createElement("a");
+      href.setAttribute("href", "#");
+      href.innerHTML = keys[i];
+      li.appendChild(href);
+      li.addEventListener("click", drawViewNext.bind(this, data, data[keys[i]]));
+    } else {
+      // is regular value
+      li.innerHTML = `${keys[i]}: ${val}`;
+    }
+    jsonView.appendChild(li);
+  }
+
+  if (stackView.length > 0) {
+    const btnPrev = document.createElement("input");
+    btnPrev.setAttribute("type", "button");
+    btnPrev.setAttribute("id", "prev");
+    btnPrev.setAttribute("value", "Previous");
+    jsonView.appendChild(btnPrev);
+    document.getElementById("prev").addEventListener("click", drawViewPrev);
+  }
+}
+
+function drawViewNext(data, dataNext) {
+  stackView.push(data);
+  console.log(stackView);
+  drawView(dataNext);
+}
+
+function drawViewPrev() {
+  const dataPrev = stackView.pop();
+  console.log(stackView);
+  drawView(dataPrev);
+}
+
+function clearView() {
+  jsonView.innerHTML = "";
+}
+
+</script>
