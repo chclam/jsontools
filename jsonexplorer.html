@@ -60,19 +60,8 @@ function drawView(data) {
   const navView = document.getElementById("navView");
 
   jsonUl.innerHTML = ""; // clear json view
-  appendJsonLi(jsonUl, data);
 
-  // update navigation
-  if (stackView.length === 0) {
-    btnPrev.hidden = true;
-    navView.innerHTML = "";
-  } else {
-    btnPrev.hidden = false;
-    navView.innerHTML = stackKey.join(" > ");
-  }
-}
-
-function appendJsonLi(jsonUl, data) {
+  // append json list items to jsonUl
   if (data === null) {
     jsonUl.innerHTML = "Object is empty.";
     return;
@@ -115,6 +104,15 @@ function appendJsonLi(jsonUl, data) {
       li.innerHTML = `<b>${keys[i]}</b>: ${val}`;
     }
     jsonUl.appendChild(li);
+  }
+
+  // update navigation
+  if (stackView.length === 0) {
+    btnPrev.hidden = true;
+    navView.innerHTML = "";
+  } else {
+    btnPrev.hidden = false;
+    navView.innerHTML = stackKey.join(" > ");
   }
 }
 
