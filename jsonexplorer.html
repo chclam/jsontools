@@ -38,20 +38,19 @@ function uploadJson() {
 
 function parseJson(reader) {
   const pUploadResult = document.getElementById("pUploadResult");
-  // clear view
+  // clear reset application states 
   document.getElementById("jsonView").innerHTML = "";
   stackView.length = 0; 
   stackKey.length = 0; 
-  let ret;
-
+  // parse data to json
+  let ret = null;
   try {
     ret = JSON.parse(reader.result); 
+    pUploadResult.textContent = "Parse SUCCESS";
   } catch (e) {
     pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
     pUploadResult.innerHTML += "Please upload a valid JSON file.";
-    return;
   }
-  pUploadResult.textContent = "Parse SUCCESS";
   return ret;
 }
 
@@ -60,13 +59,13 @@ function drawView(data) {
   const btnPrev = document.getElementById("btnPrev");
   const navView = document.getElementById("navView");
 
+  if (data === null) {
+    jsonUl.innerHTML = "No data to display.";
+    return;
+  }
   jsonUl.innerHTML = ""; // clear json view
 
   // append json list items to jsonUl
-  if (data === null) {
-    jsonUl.innerHTML = "Object is empty.";
-    return;
-  }
   keys = Object.keys(data);
   for (let i=0; i<keys.length; i++) {
     const val = data[keys[i]];
