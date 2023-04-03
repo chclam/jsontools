@@ -55,9 +55,7 @@ function parseJson(reader) {
 }
 
 function drawView(data) {
-  const jsonUl  = document.getElementById("jsonView");
-  const btnPrev = document.getElementById("btnPrev");
-  const navView = document.getElementById("navView");
+  const jsonUl = document.getElementById("jsonView");
 
   if (data === null) {
     jsonUl.innerHTML = "No data to display.";
@@ -107,6 +105,9 @@ function drawView(data) {
   }
 
   // update navigation
+  const btnPrev = document.getElementById("btnPrev");
+  const navView = document.getElementById("navView");
+
   if (stackView.length === 0) {
     btnPrev.hidden = true;
     navView.innerHTML = "";
