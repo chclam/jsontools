@@ -30,28 +30,29 @@ document.getElementById("btnPrev").addEventListener("click", drawViewPrev);
 function uploadJson() {
   const [file] = document.getElementById("btnUpload").files;
   const reader = new FileReader();
-  reader.addEventListener("load", () => { parseInput(reader); }, false);
+  reader.addEventListener("load", () => { drawView(parseJson(reader)); }, false);
   if (file) {
     reader.readAsText(file);
   }
 }
 
-function parseInput(reader) {
+function parseJson(reader) {
   const pUploadResult = document.getElementById("pUploadResult");
   // clear view
   document.getElementById("jsonView").innerHTML = "";
   stackView.length = 0; 
   stackKey.length = 0; 
+  let ret;
 
   try {
-    jsonData = JSON.parse(reader.result); 
+    ret = JSON.parse(reader.result); 
   } catch (e) {
     pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
     pUploadResult.innerHTML += "Please upload a valid JSON file.";
     return;
   }
   pUploadResult.textContent = "Parse SUCCESS";
-  drawView(jsonData)
+  return ret;
 }
 
 function drawView(data) {
