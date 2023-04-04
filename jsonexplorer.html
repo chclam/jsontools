@@ -63,6 +63,7 @@ function drawView(data) {
   }
   jsonUl.innerHTML = ""; // clear json view
 
+
   // append json list items to jsonUl
   keys = Object.keys(data);
   for (let i=0; i<keys.length; i++) {
@@ -124,6 +125,7 @@ function drawViewNext(data, dataNext, keyView) {
 }
 
 function drawViewPrev() {
+  if (stackView.length === 0) return;
   const dataPrev = stackView.pop();
   stackKey.pop()
   drawView(dataPrev);
