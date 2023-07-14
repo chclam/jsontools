@@ -141,9 +141,8 @@ function convertJsonCsv(data) {
         isLeaf = false;
 
       } else {
-        uniqueCols.add(dataKey);
         // DataElement is a regular value
-        // leaves.push(data);
+        uniqueCols.add(dataKey);
       }
     }
     if (isLeaf) leaves.push(data);
@@ -161,12 +160,10 @@ function convertJsonCsv(data) {
   let ret = Array.from(uniqueCols).join(",") + "\n";
 
   for (const leaf of leaves) {
-
     const leafStack = [leaf];
     const row = new Array(Array.from(uniqueCols).length);
 
     while (leafStack.length > 0) {
-
       const node = leafStack.pop();
 
       for (const dataKey of Object.keys(node)) {
