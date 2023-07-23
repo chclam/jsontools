@@ -73,7 +73,7 @@ function treeBuild(jsonTree) {
   const root = new Node(null, true);
   const tree = new Tree(root);
 
-  const treeNodeMap = new Map();
+  const treeNodeMap = new WeakMap();
   treeNodeMap.set(jsonTree, root);
 
   const stack = [jsonTree];
@@ -110,8 +110,6 @@ function treeBuild(jsonTree) {
               }
             );
 
-            // stack.push(new StackElement(newElement, null, newNode));
-            
             treeNodeMap.set(newElement, newNode);
             stack.push(newElement);
 
@@ -126,14 +124,12 @@ function treeBuild(jsonTree) {
         // dataElement is an object 
 
         const newElement = {};
-
         Object.keys(dataElement).forEach(
           (key) => {
             newElement[`${dataKey}_${key}`] = dataElement[key];
           }
         );
 
-        //stack.push(new StackElement(newElement, null, treeNode));
         treeNodeMap.set(newElement, treeNode);
         stack.push(newElement);
 

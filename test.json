@@ -6,7 +6,16 @@
   "test6": [
     {
       "test1": "yoo",
-      "test2": "yoo2"
+      "test2": "yoo2",
+      "testlijst": [
+        {
+          "testinlijst": "yoo",
+          "Testinlijst1": 1
+        },
+        {
+          "anderetest": "222"
+        }
+     ]
     },
     {
       "test1": "yoo3"
