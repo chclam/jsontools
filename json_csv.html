@@ -100,6 +100,7 @@ function treeBuild(jsonTree) {
             // if is object
 
             const newNode = new Node(treeNode, true);
+            newNode.name = dataKey;
             addNode(tree, newNode, treeNode);
 
             const newElement = {};
@@ -207,6 +208,7 @@ function Node(parent, isLeaf) {
   this.parent = parent;
   //this.children = [];
   this.data = new Map(); // data is filled as we traverse through the original json tree
+  this.name = null;
 }
 
 function addNode(tree, newNode, parentNode) {
