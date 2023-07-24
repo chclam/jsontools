@@ -70,12 +70,13 @@ function saveCsvBlob(csvText, inputFilename) {
 // build a proper data structure to deal with the tree logic.
 function treeBuild(jsonTree) {
   // Builds a simplified tree.
-  const root = new Node(null, true);
-  const tree = new Tree(root);
+  const tree = new Tree();
+  const root = addNode(tree);
 
   const treeNodeMap = new WeakMap();
   treeNodeMap.set(jsonTree, root);
 
+  const jsonNodeNameMap = new WeakMap();
   const stack = [jsonTree];
 
   while (stack.length > 0) {
@@ -92,57 +93,51 @@ function treeBuild(jsonTree) {
         // case distinction per type
         for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
           const nestedElement = dataElement[nestedKey];
-         // if () {
-         //   // if is array // to do
 
-         // } else 
-          if ((!Array.isArray(nestedElement)) && typeof(nestedElement) === "object") {
-            // if is object
+          if (Array.isArray(nestedElement)) {
+            // todo nestedElement is an array 
 
-            const newNode = new Node(treeNode, true);
+
+          } else if (typeof(nestedElement) === "object") {
+            // nestedElement is an object
+            const newNode = addNode(tree, treeNode);
             newNode.name = dataKey;
-            addNode(tree, newNode, treeNode);
 
-            const newElement = {};
+            const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+            jsonNodeNameMap.set(nestedElement, jsonNodeName);
 
-            Object.keys(nestedElement).forEach(
-              (key) => {
-                newElement[`${dataKey}_${key}`] = nestedElement[key];
-              }
-            );
-
-            treeNodeMap.set(newElement, newNode);
-            stack.push(newElement);
+            treeNodeMap.set(nestedElement, newNode);
+            stack.push(nestedElement);
 
           } else {
-            // if is a primitive value
-            treeNodeMap.set(nestedElement, treeNode);
-            stack.push(nestedElement);
+            // nestedElement is a primitive value
+//            treeNodeMap.set(nestedElement, treeNode);
+//            stack.push(nestedElement);
+            // todo
+
           }
         }
 
       } else if (typeof(dataElement) === "object" && dataElement !== null) {
         // dataElement is an object 
+          const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+          jsonNodeNameMap.set(dataElement, jsonNodeName);
 
-        const newElement = {};
-        Object.keys(dataElement).forEach(
-          (key) => {
-            newElement[`${dataKey}_${key}`] = dataElement[key];
-          }
-        );
-
-        treeNodeMap.set(newElement, treeNode);
-        stack.push(newElement);
+          treeNodeMap.set(dataElement, treeNode);
+          stack.push(dataElement);
 
       } else {
         // dataElement is a primitive value
-        tree.uniqueCols.add(dataKey);
-        treeNode.data.set(dataKey, dataElement);
+        const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+        
+        tree.uniqueCols.add(colName);
+        treeNode.data.set(colName, dataElement);
       }
     }
   }
   return tree;
 }
+
 
 function jsonToTabular(tree) {
   /*
@@ -157,21 +152,21 @@ function jsonToTabular(tree) {
 
   // We make a hash map for each column in the json 
   // to its index in the resulting csv-file.
-  const colMapping = {};
+  const colMapping = new Map();
   Array.from(tree.uniqueCols).forEach(
     (col, idx) => {
-      colMapping[col] = idx;
+      colMapping.set(col, idx);
     }
   );
 
-  let ret = Array.from(tree.uniqueCols).join(",") + "\n";
+  let ret = Array.from(colMapping.keys()).join(",") + "\n";
 
   for (const node of tree.nodes) {
 
     if (!node.isLeaf) continue;
 
     const leafStack = [node];
-    const row = new Array(Array.from(tree.uniqueCols).length);
+    const row = new Array(colMapping.size);
 
     while (leafStack.length > 0) {
       const innerNode = leafStack.pop();
@@ -180,16 +175,15 @@ function jsonToTabular(tree) {
 
       for (let [dataKey, nodeElement] of innerNode.data.entries()) {
 
-        if (typeof(nodeElement) !== "object" && (nodeElement !== null)) {
-          // if object field is a regular, non-iterative value
+        if (nodeElement === null) continue;
 
-          // clean string
-          nodeElement = nodeElement.replace(',', ' ');
-          nodeElement = nodeElement.trim();
+        // clean string
+        nodeElement = nodeElement.toString();
+        nodeElement = nodeElement.replace(',', ' ');
+        nodeElement = nodeElement.trim();
 
-          const colIdx = colMapping[dataKey];
-          row[colIdx] = nodeElement;
-        }
+        const colIdx = colMapping[dataKey];
+        row[colIdx] = nodeElement;
       }
     }
     ret += (row.join(",") + "\n");
@@ -197,24 +191,39 @@ function jsonToTabular(tree) {
   return ret;
 }
 
-function Tree(root) {
-  this.root = root;
-  this.nodes = [root];
+function Tree() {
+  this.root  = null;
+  this.nodes = [];
   this.uniqueCols = new Set();
 }
 
-function Node(parent, isLeaf) {
+function Node() {
+  this.parent = null;
+  this.name   = null;
   this.isLeaf = true;
-  this.parent = parent;
-  //this.children = [];
+  this.children = [];
+
   this.data = new Map(); // data is filled as we traverse through the original json tree
-  this.name = null;
 }
 
-function addNode(tree, newNode, parentNode) {
-  parentNode.isLeaf = false;
-  //parentNode.children.push(newNode);
+
+function addNode(tree, parentNode=null) {
+  const newNode = new Node();
+
+  if (tree.nodes.length === 0) {
+    console.assert(parentNode === null);
+    tree.root = newNode;
+  } else {
+    console.assert(parentNode !== null);
+    
+    newNode.parent = parentNode;
+
+    parentNode.children.push(newNode);
+    parentNode.isLeaf = false;
+  }
+
   tree.nodes.push(newNode);
+  return newNode;
 }
 
 </script>
