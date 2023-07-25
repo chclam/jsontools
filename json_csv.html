@@ -87,10 +87,10 @@ function treeBuild(jsonTree) {
 
       const dataElement = jsonNode[dataKey];
 
+      // case distinction per type
       if (Array.isArray(dataElement)) {
         // dataElement is an array
 
-        // case distinction per type
         for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
           const nestedElement = dataElement[nestedKey];
 
@@ -140,14 +140,10 @@ function treeBuild(jsonTree) {
 
 
 function jsonToTabular(tree) {
-  /*
-  In this function, we pass through the json-data twice.
-  We first extract a set of unique columns found in
-  the json tree "uniqueCols" and we store all its leaves in "leaves".
-  Each leaf in leaves has a reference toward its parent "_node_parent", up until the root.
-
-  Given "uniqueCols" and "leaves", we then traverse through each leaf up until
-  the its root while extracting the fields in each inner node.  
+  /* Given a tree from treeBuild, we traverse the tree from the root to the leaves.
+  We write a line in the resulting csv-file for each unique path from root to leaf. 
+  Since the paths to the leaves often share inner nodes, we cache the row data for each
+  inner node in a mapping (nodeRowCache).
   */
 
   // We make a hash map for each column in the json 
@@ -161,32 +157,44 @@ function jsonToTabular(tree) {
 
   let ret = Array.from(colMapping.keys()).join(",") + "\n";
 
-  for (const node of tree.nodes) {
+  const stack = [tree.root];
+  const nodeRowCache = new WeakMap();
 
-    if (!node.isLeaf) continue;
+  while (stack.length > 0) {
+    const treeNode = stack.pop(); 
 
-    const leafStack = [node];
-    const row = new Array(colMapping.size);
+    // Variable row is an array where each index correponds to a column.
+    // We retrieve the cached row data for each visited inner node.
+    let row;
+    if (treeNode.parent !== null && nodeRowCache.has(treeNode.parent)) {
+      row = [...nodeRowCache.get(treeNode.parent)]; // Make a deep copy of the cached parent data
+    } else {
+      row = new Array(colMapping.size); // make a new array if parent is not cached
+    }
 
-    while (leafStack.length > 0) {
-      const innerNode = leafStack.pop();
+    for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
-      if (innerNode.parent !== null) leafStack.push(innerNode.parent);
+      if (nodeElement == null) continue; // we don't write nulls to the excel file!
 
-      for (let [dataKey, nodeElement] of innerNode.data.entries()) {
+      // clean the data
+      nodeElement = nodeElement.toString();
+      nodeElement = nodeElement.replace(',', ' ');
+      nodeElement = nodeElement.trim();
 
-        if (nodeElement === null) continue;
+      const colIdx = colMapping.get(dataKey);
+      row[colIdx] = nodeElement;
+    }
 
-        // clean string
-        nodeElement = nodeElement.toString();
-        nodeElement = nodeElement.replace(',', ' ');
-        nodeElement = nodeElement.trim();
+    if (treeNode.isLeaf) {
+      ret += (row.join(",") + "\n");
+    } else {
+      // Cache the row array that belongs to the tree node.
+      nodeRowCache.set(treeNode, row); 
 
-        const colIdx = colMapping[dataKey];
-        row[colIdx] = nodeElement;
+      for (const childNode of treeNode.children) {
+        stack.push(childNode);
       }
     }
-    ret += (row.join(",") + "\n");
   }
   return ret;
 }
