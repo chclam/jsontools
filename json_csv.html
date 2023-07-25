@@ -173,10 +173,10 @@ function jsonToTabular(tree) {
     // Variable row is an array where each index correponds to a column.
     // We retrieve the cached row data for each visited inner node.
     let row;
-    if (treeNode.parent !== null && nodeRowCache.has(treeNode.parent)) {
-      row = [...nodeRowCache.get(treeNode.parent)]; // Make a deep copy of the cached parent data
+    if (treeNode.parent === null) {
+      row = new Array(colMapping.size); // make a new array if node is root
     } else {
-      row = new Array(colMapping.size); // make a new array if parent is not cached
+      row = [...nodeRowCache.get(treeNode.parent)]; // Make a deep copy of the cached parent data
     }
 
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
