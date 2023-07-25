@@ -69,7 +69,14 @@ function saveCsvBlob(csvText, inputFilename) {
 
 // build a proper data structure to deal with the tree logic.
 function treeBuild(jsonTree) {
-  // Builds a simplified tree.
+  /* We build our own tree from the source json-tree.
+  The new tree is a simplified version of the source json-tree by
+  merging nested objects in the source json-tree.
+  E.g. {a: {b: 1}, c: 2} becomes {a_b:1, c: 2}.
+      However, we do make add new nodes for each Object in the arrays 
+  because these correspond to multiple entries belonging to the parent node.
+  e.g. {a: [{b: 1}, {b: 2}], c: 2} becomes {c: 2} with children {a_b: 1} and {a_b: 2}.
+  */
   const tree = new Tree();
   const root = addNode(tree);
 
@@ -155,7 +162,7 @@ function jsonToTabular(tree) {
     }
   );
 
-  let ret = Array.from(colMapping.keys()).join(",") + "\n";
+  let ret = Array.from(colMapping.keys()).join("|") + "\n";
 
   const stack = [tree.root];
   const nodeRowCache = new WeakMap();
@@ -178,7 +185,7 @@ function jsonToTabular(tree) {
 
       // clean the data
       nodeElement = nodeElement.toString();
-      nodeElement = nodeElement.replace(',', ' ');
+      nodeElement = nodeElement.replace('|', ' ');
       nodeElement = nodeElement.trim();
 
       const colIdx = colMapping.get(dataKey);
@@ -186,7 +193,7 @@ function jsonToTabular(tree) {
     }
 
     if (treeNode.isLeaf) {
-      ret += (row.join(",") + "\n");
+      ret += (row.join("|") + "\n"); // todo: rows from large files >10MB exceeds the max string length.
     } else {
       // Cache the row array that belongs to the tree node.
       nodeRowCache.set(treeNode, row); 
@@ -213,7 +220,6 @@ function Node() {
 
   this.data = new Map(); // data is filled as we traverse through the original json tree
 }
-
 
 function addNode(tree, parentNode=null) {
   const newNode = new Node();
