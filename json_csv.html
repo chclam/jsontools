@@ -6,24 +6,30 @@ Author: Chris Lam (c.lam@cbs.nl)
   <head>
     <title>CBS JSON to CSV Converter</title>
   </head>
-  <body class="container">
-    <h1>CBS JSON to CSV Converter</h1>
-    <div id="divUpload">
-      <p>Please upload your JSON file.</p>
-      <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
-      <p id="pUploadResult"></p>
+  <body>
+    <div id="content">
+      <h1>CBS JSON to CSV Converter</h1>
+      <div id="divUpload">
+        <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+        <p id="pUploadResult"></p>
+      </div>
+      <div id="divDownload" hidden>
+        <a href id="btnDownload"><button>Download CSV</button></a>
+      </div>
     </div>
   </body>
 </html>
 
 <script>
-
 /*
 todo: 
   * Allow the user to filter data columns that are being printed in the csv-file;
   * Allow the user to rename data columns in the csv-file (column aliases);
   * Allow the user to define an order in the data columns.
+  * Allow the user to define the delimiter
 */
+
+const csvDelimiter = ";";
 
 function uploadJson() {
   const [file] = document.getElementById("btnUpload").files;
@@ -58,13 +64,11 @@ function parseJson(reader) {
 }
 
 function saveCsvBlob(csvText, inputFilename) {
-  const a = window.document.createElement('a');
-  a.href = window.URL.createObjectURL(new Blob([csvText], {type: "text/csv"}));
+  const a = document.getElementById("btnDownload");
+  a.href = window.URL.createObjectURL(new Blob(csvText, {type: "text/csv"}));
   a.download = `${inputFilename}.csv`;
 
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  document.getElementById("divDownload").removeAttribute("hidden");
 }
 
 // build a proper data structure to deal with the tree logic.
@@ -150,8 +154,7 @@ function jsonToTabular(tree) {
   /* Given a tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
-  inner node in a mapping (nodeRowCache).
-  */
+  inner node in a mapping (nodeRowCache). */
 
   // We make a hash map for each column in the json 
   // to its index in the resulting csv-file.
@@ -162,7 +165,9 @@ function jsonToTabular(tree) {
     }
   );
 
-  let ret = Array.from(colMapping.keys()).join("|") + "\n";
+  const ret = [];
+  const headerRow = Array.from(colMapping.keys()).join(csvDelimiter) + "\n";
+  ret.push(headerRow);
 
   const stack = [tree.root];
   const nodeRowCache = new WeakMap();
@@ -172,12 +177,7 @@ function jsonToTabular(tree) {
 
     // Variable row is an array where each index correponds to a column.
     // We retrieve the cached row data for each visited inner node.
-    let row;
-    if (treeNode.parent === null) {
-      row = new Array(colMapping.size); // make a new array if node is root
-    } else {
-      row = [...nodeRowCache.get(treeNode.parent)]; // Make a deep copy of the cached parent data
-    }
+    const row = (treeNode.parent === null) ? new Array(colMapping.size) : [...nodeRowCache.get(treeNode.parent)];
 
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
@@ -185,7 +185,7 @@ function jsonToTabular(tree) {
 
       // clean the data
       nodeElement = nodeElement.toString();
-      nodeElement = nodeElement.replace('|', ' ');
+      nodeElement = nodeElement.replace(csvDelimiter, ' ');
       nodeElement = nodeElement.trim();
 
       const colIdx = colMapping.get(dataKey);
@@ -193,7 +193,8 @@ function jsonToTabular(tree) {
     }
 
     if (treeNode.isLeaf) {
-      ret += (row.join("|") + "\n"); // todo: rows from large files >10MB exceeds the max string length.
+      const csvRow = row.join(csvDelimiter) + "\n";
+      ret.push(csvRow);
     } else {
       // Cache the row array that belongs to the tree node.
       nodeRowCache.set(treeNode, row); 
@@ -239,5 +240,16 @@ function addNode(tree, parentNode=null) {
   tree.nodes.push(newNode);
   return newNode;
 }
-
 </script>
+
+<style>
+  #content {
+    font-family: Helvetica, sans-serif, Arial;
+
+    margin-left : 10%;
+    margin-right: 10%;
+
+    margin-top   : 20px;
+    margin-bottom: 20px;
+  }
+</style>
