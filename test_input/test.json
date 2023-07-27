@@ -3,6 +3,7 @@
   "test2": "2",
   "test3": true,
   "test4": [1, 2, 3, 4],
+  "test7": [[1, 2], "hee"],
   "test6": [
     {
       "test1": "yoo",

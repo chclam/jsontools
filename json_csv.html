@@ -15,6 +15,7 @@ Author: Chris Lam (c.lam@cbs.nl)
       </div>
       <div id="divDownload" hidden>
         <a href id="btnDownload"><button>Download CSV</button></a>
+        <p id="pDownloadFilename"></p>
       </div>
     </div>
   </body>
@@ -39,8 +40,8 @@ function uploadJson() {
   reader.addEventListener("load", () => {
       const jsonTree = parseJson(reader);
       const newTree = treeBuild(jsonTree);
-      const jsonTabular = jsonToTabular(newTree);
-      saveCsvBlob(jsonTabular, inputFilename);
+      const csvLines = jsonToTabular(newTree);
+      saveCsvBlob(csvLines, inputFilename);
   }, false);
 
   if (file) {
@@ -63,11 +64,14 @@ function parseJson(reader) {
   return ret;
 }
 
-function saveCsvBlob(csvText, inputFilename) {
+function saveCsvBlob(csvLines, inputFilename) {
   const a = document.getElementById("btnDownload");
-  a.href = window.URL.createObjectURL(new Blob(csvText, {type: "text/csv"}));
-  a.download = `${inputFilename}.csv`;
+  const outputFilename = `${inputFilename}.csv`;
 
+  a.href = window.URL.createObjectURL(new Blob(csvLines, {type: "text/csv"}));
+  a.download = outputFilename;
+
+  document.getElementById("pDownloadFilename").innerText = outputFilename;
   document.getElementById("divDownload").removeAttribute("hidden");
 }
 
@@ -107,7 +111,24 @@ function treeBuild(jsonTree) {
 
           if (Array.isArray(nestedElement)) {
             // todo nestedElement is an array 
+            // this is an ugly case. Since an array can also 
+            // contain other objects etc., we copy the elements into a new object.
+            const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + `_${nestedKey}`;
 
+            const newObject = {};
+            nestedElement.forEach(
+              (nestedNestedElement, idx) => {
+                newObject[idx] = nestedNestedElement;
+              }
+            );
+
+            const newNode = addNode(tree, treeNode);
+            newNode.name = jsonNodeName;
+
+            jsonNodeNameMap.set(newObject, jsonNodeName);
+
+            treeNodeMap.set(newObject, newNode);
+            stack.push(newObject);
 
           } else if (typeof(nestedElement) === "object") {
             // nestedElement is an object
@@ -122,10 +143,13 @@ function treeBuild(jsonTree) {
 
           } else {
             // nestedElement is a primitive value
-//            treeNodeMap.set(nestedElement, treeNode);
-//            stack.push(nestedElement);
-            // todo
+            const colName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + "_values";
 
+            const newNode = addNode(tree, treeNode);
+            newNode.name = colName;
+            newNode.data.set(colName, nestedElement)
+
+            tree.uniqueCols.add(colName);
           }
         }
 
@@ -158,6 +182,7 @@ function jsonToTabular(tree) {
 
   // We make a hash map for each column in the json 
   // to its index in the resulting csv-file.
+
   const colMapping = new Map();
   Array.from(tree.uniqueCols).forEach(
     (col, idx) => {
@@ -243,13 +268,25 @@ function addNode(tree, parentNode=null) {
 </script>
 
 <style>
+  body {
+    font-family: helvetica, arial, sans-serif;
+    background-color: rgb(189, 188, 188);
+  }
+
+  button, input::file-selector-button {
+    padding: 10px 10px;
+  }
+
+  /* Classes */
+
+  /* Ids */
   #content {
-    font-family: Helvetica, sans-serif, Arial;
+    background-color: rgb(233, 233, 233);
 
     margin-left : 10%;
     margin-right: 10%;
 
-    margin-top   : 20px;
-    margin-bottom: 20px;
+    padding: 5px 20px;
   }
+
 </style>
