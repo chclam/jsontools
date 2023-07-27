@@ -105,12 +105,12 @@ function treeBuild(jsonTree) {
       // case distinction per type
       if (Array.isArray(dataElement)) {
         // dataElement is an array
-
         for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
           const nestedElement = dataElement[nestedKey];
 
           if (Array.isArray(nestedElement)) {
-            // todo nestedElement is an array 
+            // nestedElement is an array 
+
             // this is an ugly case. Since an array can also 
             // contain other objects etc., we copy the elements into a new object.
             const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + `_${nestedKey}`;
