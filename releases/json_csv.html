@@ -1,0 +1,192 @@
+<html>
+  <head>
+    <title>CBS JSON to CSV Converter</title>
+  </head>
+  <body class="container">
+    <h1>CBS JSON to CSV Converter</h1>
+    <div id="divUpload">
+      <p>Please upload your JSON file.</p>
+      <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+      <p id="pUploadResult"></p>
+    </div>
+  </body>
+</html>
+
+<script>
+
+function uploadJson() {
+  const [file] = document.getElementById("btnUpload").files;
+  const reader = new FileReader();
+  let inputFilename = file.name;
+  inputFilename = inputFilename.replace(".json", "");
+  reader.addEventListener("load", () => { saveCsvBlob(convertJsonCsv(parseJson(reader)), inputFilename); }, false); if (file) {
+    reader.readAsText(file);
+  }
+}
+
+function parseJson(reader) {
+  const pUploadResult = document.getElementById("pUploadResult");
+  // clear reset application states 
+  // parse data to json
+  let ret = null;
+  try {
+    ret = JSON.parse(reader.result); 
+    pUploadResult.textContent = "Parse SUCCESS";
+  } catch (e) {
+    pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
+    pUploadResult.innerHTML += "Please upload a valid JSON file.";
+  }
+  return ret;
+}
+
+function saveCsvBlob(csvText, inputFilename) {
+  const a = window.document.createElement('a');
+  a.href = window.URL.createObjectURL(new Blob([csvText], {type: "text/csv"}));
+  a.download = `${inputFilename}.csv`;
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function convertJsonCsv(data) {
+  /*
+  In this function, we pass through the json-data twice.
+  We first extract a set of unique columns found in
+  the json tree "uniqueCols" and we store all its leaves in "leaves".
+  Each leaf in leaves has a reference toward its parent "_node_parent", up until the root.
+
+  Given "uniqueCols" and "leaves", we then traverse through each leaf up until
+  the its root while extracting the fields in each inner node.  
+  */
+
+  if (data === null) {
+    jsonUl.innerHTML = "No data to display.";
+    return;
+  }
+
+  const stack = [data];  // is a list of JS objects.
+  const leaves = [];
+  const uniqueCols = new Set();
+
+  while (stack.length > 0) {
+
+    const data = stack.pop();
+    let isLeaf = true;
+
+    // Loop through elements in tree level
+    for (let dataKey in data) {
+
+      if (dataKey == "_node_parent") continue;
+
+      const dataElement = data[dataKey];
+
+      if (Array.isArray(dataElement)) {
+        // dataElement is an array
+
+        const arrayElements = {}; // stores the non-iterable elements within the array.
+
+        for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
+          const nestedElement = dataElement[nestedKey];
+
+          if ((!Array.isArray(nestedElement)) && typeof(nestedElement) === "object") {
+            // dataElement is an array AND its element is an object.
+            // Copy object where the key is prepended to each object field.
+            const newElement = {};
+
+            Object.keys(nestedElement).forEach(
+              (key) => {
+                newElement[`${dataKey}_${key}`] = nestedElement[key];
+                newElement["_node_parent"] = data;
+              }
+            );
+
+            stack.push(newElement);
+            isLeaf = false;
+
+          } else {
+            uniqueCols.add(`${dataKey}_${nestedKey}`);
+            arrayElements[`${dataKey}_${nestedKey}`] = nestedElement;
+          }
+        }
+
+        // Push all non-iterable values toward the leaves
+
+        if (Object.keys(arrayElements).length > 0) {
+          arrayElements["_node_parent"] = data;
+          leaves.push(arrayElements);
+        }
+
+      } else if (typeof(dataElement) === "object" && dataElement !== null) {
+        // dataElement is an Object
+
+        // Copy object where the key is prepended to each object field.
+        const newElement = {};
+
+        Object.keys(dataElement).forEach(
+          (key) => { 
+            newElement[`${dataKey}_${key}`] = dataElement[key];
+            newElement["_node_parent"] = data;
+          }
+        );
+
+        stack.push(newElement);
+        isLeaf = false;
+
+      } else {
+        uniqueCols.add(dataKey);
+        // DataElement is a regular value
+        // leaves.push(data);
+      }
+    }
+    if (isLeaf) leaves.push(data);
+  }
+
+  // We make a hash map for each column in the json 
+  // to its index in the resulting csv-file.
+  const colMapping = {};
+  Array.from(uniqueCols).forEach(
+    (col, idx) => {
+      colMapping[col] = idx;
+    }
+  );
+
+  let ret = Array.from(uniqueCols).join(",") + "\n";
+
+  for (const leaf of leaves) {
+
+    const leafStack = [leaf];
+    const row = new Array(Array.from(uniqueCols).length);
+
+    while (leafStack.length > 0) {
+
+      const node = leafStack.pop();
+
+      for (const dataKey of Object.keys(node)) {
+        let nodeElement = node[dataKey];
+
+        if (dataKey === "_node_parent") {
+          // if object field is a pointer toward a parent
+          leafStack.push(nodeElement);
+          continue;
+        }
+        if (typeof(nodeElement) !== "object" && (nodeElement !== null)) {
+          // if object field is a regular, non-iterative value
+
+          // clean string
+          nodeElement = nodeElement.replace(',', ' ');
+          nodeElement = nodeElement.trim();
+
+          const colIdx = colMapping[dataKey];
+          row[colIdx] = nodeElement;
+          // won't it override? if they have the same parent? Not always!
+        }
+      }
+    }
+    ret += (row.join(",") + "\n");
+  }
+  return ret;
+}
+
+
+</script>

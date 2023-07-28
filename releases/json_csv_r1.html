@@ -1,0 +1,287 @@
+<!--
+Author: Chris Lam (c.lam@cbs.nl)
+-->
+
+<html>
+  <head>
+    <title>CBS JSON to CSV Converter</title>
+  </head>
+  <body>
+    <div id="content">
+      <h1>CBS JSON to CSV Converter</h1>
+      <div id="divUpload">
+        <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+        <p id="pUploadResult"></p>
+      </div>
+      <div id="divDownload" hidden>
+        <a href id="btnDownload"><button>Download CSV</button></a>
+        <p id="pDownloadFilename"></p>
+      </div>
+    </div>
+  </body>
+</html>
+
+<script>
+/*
+todo: 
+  * Allow the user to filter data columns that are being printed in the csv-file;
+  * Allow the user to rename data columns in the csv-file (column aliases);
+  * Allow the user to define an order in the data columns.
+  * Allow the user to define the delimiter
+*/
+
+const csvDelimiter = ";";
+
+function uploadJson() {
+  const [file] = document.getElementById("btnUpload").files;
+  const reader = new FileReader();
+  let inputFilename = file.name;
+  inputFilename = inputFilename.replace(".json", "");
+  reader.addEventListener("load", () => {
+      const jsonTree = parseJson(reader);
+      const newTree = treeBuild(jsonTree);
+      const csvLines = jsonToTabular(newTree);
+      saveCsvBlob(csvLines, inputFilename);
+  }, false);
+
+  if (file) {
+    reader.readAsText(file);
+  }
+}
+
+function parseJson(reader) {
+  const pUploadResult = document.getElementById("pUploadResult");
+  // clear reset application states 
+  // parse data to json
+  let ret = null;
+  try {
+    ret = JSON.parse(reader.result); 
+    pUploadResult.textContent = "Parse SUCCESS";
+  } catch (e) {
+    pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
+    pUploadResult.innerHTML += "Please upload a valid JSON file.";
+  }
+  return ret;
+}
+
+function saveCsvBlob(csvLines, inputFilename) {
+  const a = document.getElementById("btnDownload");
+  const outputFilename = `${inputFilename}.csv`;
+
+  a.href = window.URL.createObjectURL(new Blob(csvLines, {type: "text/csv"}));
+  a.download = outputFilename;
+
+  document.getElementById("pDownloadFilename").innerText = outputFilename;
+  document.getElementById("divDownload").removeAttribute("hidden");
+}
+
+// build a proper data structure to deal with the tree logic.
+function treeBuild(jsonTree) {
+  /* We build our own tree from the source json-tree.
+  The new tree is a simplified version of the source json-tree by
+  merging nested objects in the source json-tree.
+  E.g. {a: {b: 1}, c: 2} becomes {a_b:1, c: 2}.
+      However, we do make add new nodes for each Object in the arrays 
+  because these correspond to multiple entries belonging to the parent node.
+  e.g. {a: [{b: 1}, {b: 2}], c: 2} becomes {c: 2} with children {a_b: 1} and {a_b: 2}.
+  */
+  const tree = new Tree();
+  const root = addNode(tree);
+
+  const treeNodeMap = new WeakMap();
+  treeNodeMap.set(jsonTree, root);
+
+  const jsonNodeNameMap = new WeakMap();
+  const stack = [jsonTree];
+
+  while (stack.length > 0) {
+    const jsonNode = stack.pop();
+    const treeNode = treeNodeMap.get(jsonNode);
+
+    for (const dataKey in jsonNode) {
+
+      const dataElement = jsonNode[dataKey];
+
+      // case distinction per type
+      if (Array.isArray(dataElement)) {
+        // dataElement is an array
+        for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
+          const nestedElement = dataElement[nestedKey];
+
+          if (Array.isArray(nestedElement)) {
+            // nestedElement is an array 
+
+            // this is an ugly case. Since an array can also 
+            // contain other objects etc., we copy the array into a new object.
+            const newObject = new Object();
+            newObject[`${nestedKey}`] = nestedElement;
+
+            const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey);
+            jsonNodeNameMap.set(newObject, jsonNodeName);
+
+            const newNode = addNode(tree, treeNode);
+            newNode.name = jsonNodeName;
+
+            treeNodeMap.set(newObject, newNode);
+            stack.push(newObject);
+
+          } else if (typeof(nestedElement) === "object") {
+            // nestedElement is an object
+            const newNode = addNode(tree, treeNode);
+            newNode.name = dataKey;
+
+            const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+            jsonNodeNameMap.set(nestedElement, jsonNodeName);
+
+            treeNodeMap.set(nestedElement, newNode);
+            stack.push(nestedElement);
+
+          } else {
+            // nestedElement is a primitive value
+            const colName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + "_values";
+
+            const newNode = addNode(tree, treeNode);
+            newNode.name = colName;
+            newNode.data.set(colName, nestedElement)
+
+            tree.uniqueCols.add(colName);
+          }
+        }
+
+      } else if (typeof(dataElement) === "object" && dataElement !== null) {
+        // dataElement is an object 
+          const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+          jsonNodeNameMap.set(dataElement, jsonNodeName);
+
+          treeNodeMap.set(dataElement, treeNode);
+          stack.push(dataElement);
+
+      } else {
+        // dataElement is a primitive value
+        const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+        
+        tree.uniqueCols.add(colName);
+        treeNode.data.set(colName, dataElement);
+      }
+    }
+  }
+  return tree;
+}
+
+
+function jsonToTabular(tree) {
+  /* Given a tree from treeBuild, we traverse the tree from the root to the leaves.
+  We write a line in the resulting csv-file for each unique path from root to leaf. 
+  Since the paths to the leaves often share inner nodes, we cache the row data for each
+  inner node in a mapping (nodeRowCache). */
+
+  // We make a hash map for each column in the json 
+  // to its index in the resulting csv-file.
+
+  const colMapping = new Map();
+  Array.from(tree.uniqueCols).forEach(
+    (col, idx) => {
+      colMapping.set(col, idx);
+    }
+  );
+
+  const ret = [];
+  const headerRow = Array.from(colMapping.keys()).join(csvDelimiter) + "\n";
+  ret.push(headerRow);
+
+  const stack = [tree.root];
+  const nodeRowCache = new WeakMap();
+
+  while (stack.length > 0) {
+    const treeNode = stack.pop(); 
+
+    // Variable row is an array where each index correponds to a column.
+    // We retrieve the cached row data for each visited inner node.
+    const row = (treeNode.parent === null) ? new Array(colMapping.size) : [...nodeRowCache.get(treeNode.parent)];
+
+    for (let [dataKey, nodeElement] of treeNode.data.entries()) {
+
+      if (nodeElement == null) continue; // we don't write nulls to the excel file!
+
+      // clean the data
+      nodeElement = nodeElement.toString();
+      nodeElement = nodeElement.replace(csvDelimiter, ' ');
+      nodeElement = nodeElement.trim();
+
+      const colIdx = colMapping.get(dataKey);
+      row[colIdx] = nodeElement;
+    }
+
+    if (treeNode.isLeaf) {
+      const csvRow = row.join(csvDelimiter) + "\n";
+      ret.push(csvRow);
+    } else {
+      // Cache the row array that belongs to the tree node.
+      nodeRowCache.set(treeNode, row); 
+
+      for (const childNode of treeNode.children) {
+        stack.push(childNode);
+      }
+    }
+  }
+  return ret;
+}
+
+function Tree() {
+  this.root  = null;
+  this.nodes = [];
+  this.uniqueCols = new Set();
+}
+
+function Node() {
+  this.parent = null;
+  this.name   = null;
+  this.isLeaf = true;
+  this.children = [];
+
+  this.data = new Map(); // data is filled as we traverse through the original json tree
+}
+
+function addNode(tree, parentNode=null) {
+  const newNode = new Node();
+
+  if (tree.nodes.length === 0) {
+    console.assert(parentNode === null);
+    tree.root = newNode;
+  } else {
+    console.assert(parentNode !== null);
+    
+    newNode.parent = parentNode;
+
+    parentNode.children.push(newNode);
+    parentNode.isLeaf = false;
+  }
+
+  tree.nodes.push(newNode);
+  return newNode;
+}
+</script>
+
+<style>
+  body {
+    font-family: helvetica, arial, sans-serif;
+    background-color: rgb(189, 188, 188);
+  }
+
+  button, input::file-selector-button {
+    padding: 10px 10px;
+  }
+
+  /* Classes */
+
+  /* Ids */
+  #content {
+    background-color: rgb(233, 233, 233);
+
+    margin-left : 10%;
+    margin-right: 10%;
+
+    padding: 5px 20px;
+  }
+
+</style>
