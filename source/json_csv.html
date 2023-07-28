@@ -113,9 +113,10 @@ function treeBuild(jsonTree) {
 
             // this is an ugly case. Since an array can also 
             // contain other objects etc., we copy the array into a new object.
-            const newObject = {values: nestedElement};
+            const newObject = new Object();
+            newObject[`${nestedKey}`] = nestedElement;
 
-            const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + `_${nestedKey}`;
+            const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey);
             jsonNodeNameMap.set(newObject, jsonNodeName);
 
             const newNode = addNode(tree, treeNode);
