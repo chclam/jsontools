@@ -1,7 +1,6 @@
 <!--
 Author: Chris Lam (c.lam@cbs.nl)
 -->
-
 <html>
   <head>
     <title>CBS JSON to CSV Converter</title>
@@ -12,6 +11,11 @@ Author: Chris Lam (c.lam@cbs.nl)
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
         <p id="pUploadResult"></p>
+        <div id="divconversionOptions">
+          <form id="formColumns">
+          </form>
+          <!--<button onclick="testprint()">Generate CSV</button>-->
+        </div>
       </div>
       <div id="divDownload" hidden>
         <a href id="btnDownload"><button>Download CSV</button></a>
@@ -24,10 +28,15 @@ Author: Chris Lam (c.lam@cbs.nl)
 <script>
 /*
 todo: 
-  * Allow the user to filter data columns that are being printed in the csv-file;
-  * Allow the user to rename data columns in the csv-file (column aliases);
-  * Allow the user to define an order in the data columns.
-  * Allow the user to define the delimiter
+  1. The columns are the otherway around;
+  2. Allow the user to rename data columns in the csv-file (column aliases);
+  3. Allow the user to select data columns that are being printed in the csv-file;
+  4. Bring order to columns by column groups;
+  5. Allow the user to deselect the empty columns;
+  6. Sort the columns on ;
+
+  7. Onderscheidsteken: Allow the user to define the delimiter
+  8. Volgorde: Allow the user to define an order in the data columns. OPTIONAL
 */
 
 const csvDelimiter = ";";
@@ -40,6 +49,7 @@ function uploadJson() {
   reader.addEventListener("load", () => {
       const jsonTree = parseJson(reader);
       const newTree = treeBuild(jsonTree);
+
       const csvLines = jsonToTabular(newTree);
       saveCsvBlob(csvLines, inputFilename);
   }, false);
@@ -98,6 +108,7 @@ function treeBuild(jsonTree) {
     const jsonNode = stack.pop();
     const treeNode = treeNodeMap.get(jsonNode);
 
+    // Loop through the elements in the json node
     for (const dataKey in jsonNode) {
 
       const dataElement = jsonNode[dataKey];
@@ -114,7 +125,7 @@ function treeBuild(jsonTree) {
             // this is an ugly case. Since an array can also 
             // contain other objects etc., we copy the array into a new object.
             const newObject = new Object();
-            newObject[`${nestedKey}`] = nestedElement;
+            newObject[nestedKey] = nestedElement;
 
             const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey);
             jsonNodeNameMap.set(newObject, jsonNodeName);
@@ -197,8 +208,13 @@ function jsonToTabular(tree) {
 
     // Variable row is an array where each index correponds to a column.
     // We retrieve the cached row data for each visited inner node.
-    const row = (treeNode.parent === null) ? new Array(colMapping.size) : [...nodeRowCache.get(treeNode.parent)];
-
+    let row;
+    if (treeNode.parent === null) {
+      row = new Array(colMapping.size);
+    } else {
+      row = [...nodeRowCache.get(treeNode.parent)];
+    }
+    
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
       if (nodeElement == null) continue; // we don't write nulls to the excel file!
