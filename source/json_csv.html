@@ -27,16 +27,20 @@ Author: Chris Lam (c.lam@cbs.nl)
 
 <script>
 /*
-todo: 
-  1. The columns are the other way around;
-  2. Allow the user to rename data columns in the csv-file (column aliases);
-  3. Allow the user to select data columns that are being printed in the csv-file;
-  4. Bring order to columns by column groups;
-  5. Allow the user to deselect the empty columns;
-  6. Sort the columns on ;
+done: 
+  1. Handle empty json files. 
+  2. The columns are the other way around;
 
-  7. Onderscheidsteken: Allow the user to define the delimiter
-  8. Volgorde: Allow the user to define an order in the data columns. OPTIONAL
+todo: 
+  3. Allow the user to rename data columns in the csv-file (column aliases);
+  4. Allow the user to select data columns that are being printed in the csv-file;
+  5. Bring order to columns by column groups;
+  6. Allow the user to deselect the empty columns;
+  7. Sort the columns on ;
+
+maybe:
+  8. Onderscheidsteken: Allow the user to define the delimiter
+  9. Volgorde: Allow the user to define an order in the data columns. OPTIONAL
 */
 
 const csvDelimiter = ";";
@@ -97,10 +101,12 @@ function saveCsvBlob(csvLines, inputFilename) {
 function treeBuild(jsonTree) {
   /* We build our own tree from the source json-tree.
   The new tree is a simplified version of the source json-tree by
-  merging nested objects in the source json-tree.
+  "unnesting" nested objects in the source json-tree. 
+  Suppose that object b is a variable under the name a in some object
+  Then we add all variables of object b to object a and prefix the variables with the name of object b.
   E.g. {a: {b: 1}, c: 2} becomes {a_b:1, c: 2}.
-      However, we do make add new nodes for each Object in the arrays 
-  because these correspond to multiple entries belonging to the parent node.
+      However, when dealing with objects in arrays, we do make add new nodes for each Object in an array.
+  This is because these correspond to multiple entries belonging to the parent node.
   e.g. {a: [{b: 1}, {b: 2}], c: 2} becomes {c: 2} with children {a_b: 1} and {a_b: 2}.
   */
   const tree = new Tree();
@@ -110,10 +116,10 @@ function treeBuild(jsonTree) {
   treeNodeMap.set(jsonTree, root);
 
   const jsonNodeNameMap = new WeakMap();
-  const stack = [jsonTree];
+  const queue = [jsonTree];
 
-  while (stack.length > 0) {
-    const jsonNode = stack.pop();
+  while (queue.length > 0) {
+    const jsonNode = queue.shift();
     const treeNode = treeNodeMap.get(jsonNode);
 
     // Loop through the elements in the json node
@@ -142,7 +148,7 @@ function treeBuild(jsonTree) {
             newNode.name = jsonNodeName;
 
             treeNodeMap.set(newObject, newNode);
-            stack.push(newObject);
+            queue.push(newObject);
 
           } else if (typeof(nestedElement) === "object") {
             // nestedElement is an object
@@ -153,7 +159,7 @@ function treeBuild(jsonTree) {
             jsonNodeNameMap.set(nestedElement, jsonNodeName);
 
             treeNodeMap.set(nestedElement, newNode);
-            stack.push(nestedElement);
+            queue.push(nestedElement);
 
           } else {
             // nestedElement is a primitive value
@@ -173,12 +179,13 @@ function treeBuild(jsonTree) {
           jsonNodeNameMap.set(dataElement, jsonNodeName);
 
           treeNodeMap.set(dataElement, treeNode);
-          stack.push(dataElement);
+          queue.push(dataElement);
 
       } else {
         // dataElement is a primitive value
         const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
         
+        console.log(colName);
         tree.uniqueCols.add(colName);
         treeNode.data.set(colName, dataElement);
       }
@@ -189,7 +196,7 @@ function treeBuild(jsonTree) {
 
 
 function jsonToTabular(tree) {
-  /* Given a tree from treeBuild, we traverse the tree from the root to the leaves.
+  /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
   inner node in a mapping (nodeRowCache). */
@@ -220,17 +227,18 @@ function jsonToTabular(tree) {
     if (treeNode.parent === null) {
       row = new Array(colMapping.size);
     } else {
-      row = [...nodeRowCache.get(treeNode.parent)];
+      row = [...nodeRowCache.get(treeNode.parent)]; // copy array from cache
     }
     
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
       if (nodeElement == null) continue; // we don't write nulls to the excel file!
 
-      // clean the data
+      // data sanitization 
       nodeElement = nodeElement.toString();
-      nodeElement = nodeElement.replace(csvDelimiter, ' ');
+      nodeElement = nodeElement.replace("\"", "\"\"");
       nodeElement = nodeElement.trim();
+      if (nodeElement.includes(csvDelimiter)) nodeElement = "\"" + nodeElement + "\"";
 
       const colIdx = colMapping.get(dataKey);
       row[colIdx] = nodeElement;
