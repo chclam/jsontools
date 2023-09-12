@@ -28,7 +28,7 @@ Author: Chris Lam (c.lam@cbs.nl)
 <script>
 /*
 todo: 
-  1. The columns are the otherway around;
+  1. The columns are the other way around;
   2. Allow the user to rename data columns in the csv-file (column aliases);
   3. Allow the user to select data columns that are being printed in the csv-file;
   4. Bring order to columns by column groups;
@@ -64,13 +64,20 @@ function parseJson(reader) {
   // clear reset application states 
   // parse data to json
   let ret = null;
+
   try {
     ret = JSON.parse(reader.result); 
-    pUploadResult.textContent = "Parse SUCCESS";
   } catch (e) {
     pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
     pUploadResult.innerHTML += "Please upload a valid JSON file.";
   }
+
+  if (ret === null) {
+    pUploadResult.innerHTML = `Empty JSON-file! <br>`;
+  } else {
+    pUploadResult.textContent = "Parse SUCCESS";
+  }
+
   return ret;
 }
 
@@ -254,7 +261,6 @@ function Node() {
   this.name   = null;
   this.isLeaf = true;
   this.children = [];
-
   this.data = new Map(); // data is filled as we traverse through the original json tree
 }
 
