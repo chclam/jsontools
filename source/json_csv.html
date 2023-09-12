@@ -48,6 +48,8 @@ function uploadJson() {
   inputFilename = inputFilename.replace(".json", "");
   reader.addEventListener("load", () => {
       const jsonTree = parseJson(reader);
+      if (jsonTree === null) return;
+
       const newTree = treeBuild(jsonTree);
 
       const csvLines = jsonToTabular(newTree);
@@ -77,7 +79,6 @@ function parseJson(reader) {
   } else {
     pUploadResult.textContent = "Parse SUCCESS";
   }
-
   return ret;
 }
 
