@@ -14,7 +14,6 @@ Author: Chris Lam (c.lam@cbs.nl)
         <div id="divconversionOptions">
           <form id="formColumns">
           </form>
-          <!--<button onclick="testprint()">Generate CSV</button>-->
         </div>
       </div>
       <div id="divDownload" hidden>
@@ -51,13 +50,15 @@ function uploadJson() {
   let inputFilename = file.name;
   inputFilename = inputFilename.replace(".json", "");
   reader.addEventListener("load", () => {
-      const jsonTree = parseJson(reader);
-      if (jsonTree === null) return;
+    // todo: reset download button?
+    const jsonTree = parseJson(reader);
 
+    if (jsonTree !== null) {
       const newTree = treeBuild(jsonTree);
-
+      drawNodeNames(newTree.nodes);
       const csvLines = jsonToTabular(newTree);
       saveCsvBlob(csvLines, inputFilename);
+    }
   }, false);
 
   if (file) {
@@ -74,12 +75,13 @@ function parseJson(reader) {
   try {
     ret = JSON.parse(reader.result); 
   } catch (e) {
-    pUploadResult.innerHTML = `Parse FAILED: ${e}. <br>`;
+    pUploadResult.innerHTML = `Parse FAILED: ${e}.<br>`;
     pUploadResult.innerHTML += "Please upload a valid JSON file.";
   }
 
   if (ret === null) {
-    pUploadResult.innerHTML = `Empty JSON-file! <br>`;
+    pUploadResult.innerHTML = "Empty JSON-file!<br>";
+    pUploadResult.innerHTML += "No CSV-file created";
   } else {
     pUploadResult.textContent = "Parse SUCCESS";
   }
@@ -185,7 +187,6 @@ function treeBuild(jsonTree) {
         // dataElement is a primitive value
         const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
         
-        console.log(colName);
         tree.uniqueCols.add(colName);
         treeNode.data.set(colName, dataElement);
       }
@@ -257,6 +258,47 @@ function jsonToTabular(tree) {
     }
   }
   return ret;
+}
+
+function drawNodeNames(treeNodes) {
+  const rootNodeName = "Base information";
+  const checkAllByDefault = true;
+
+  // We assigned a name to each node in the tree.
+  // We use these names to represent the "column categories".
+  const uniqueNodeNames = new Set();
+  for (const node of treeNodes) {
+    if (node.parent === null) {
+      uniqueNodeNames.add(rootNodeName); // node is root! the node has no name.
+    } else {
+      uniqueNodeNames.add(node.name);
+    }
+  }
+
+  // Add a checkbox for each unique node name.
+  // The user can then select the column categories (node names)
+  // that gets converted into csv.
+  for (const checkboxVal of uniqueNodeNames) {
+    uniqueNodeNames.add(checkboxVal);
+
+    const checkboxColInput = document.createElement("input");
+    checkboxColInput.setAttribute("type"   , "checkbox");
+    checkboxColInput.setAttribute("id"     , "id1");
+    checkboxColInput.setAttribute("name"   , checkboxVal);
+    checkboxColInput.setAttribute("value"  , checkboxVal);
+    checkboxColInput.setAttribute("checked", checkAllByDefault);
+
+    const checkboxColLabel = document.createElement("label");
+    checkboxColLabel.setAttribute("for", checkboxVal);
+    const checkboxText = document.createTextNode(checkboxVal);
+    checkboxColLabel.appendChild(checkboxText);
+    const linebreak = document.createElement("br");
+    checkboxColLabel.appendChild(linebreak);
+
+    const formColumns = document.getElementById("formColumns");
+    formColumns.appendChild(checkboxColInput);
+    formColumns.appendChild(checkboxColLabel);
+  }
 }
 
 function Tree() {
