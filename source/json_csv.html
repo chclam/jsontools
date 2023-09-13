@@ -289,11 +289,10 @@ function drawNodeNames(treeNodes) {
     checkboxColInput.setAttribute("checked", checkAllByDefault);
 
     const checkboxColLabel = document.createElement("label");
-    checkboxColLabel.setAttribute("for", checkboxVal);
     const checkboxText = document.createTextNode(checkboxVal);
+    checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
-    const linebreak = document.createElement("br");
-    checkboxColLabel.appendChild(linebreak);
+    checkboxColLabel.appendChild(document.createElement("br"));
 
     const formColumns = document.getElementById("formColumns");
     formColumns.appendChild(checkboxColInput);
