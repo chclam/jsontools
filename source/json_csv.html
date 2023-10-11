@@ -363,7 +363,7 @@ function drawColCheckboxes(treeNodes) {
 function Tree() {
   this.root  = null;
   this.nodes = [];
-  this.uniqueColsNodeNameMap = new Map(); // mapping: column -> node name. used for column selection
+  this.uniqueColsNodeNameMap = new Map(); // mapping: column -> node name. used for column selection. For an array of unique columns, get the keys of the mapping.
 }
 
 function Node() {
