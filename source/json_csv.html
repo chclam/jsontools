@@ -31,6 +31,7 @@ done:
   2. The columns are the other way around;
 
 todo: 
+  3. Filter out empty columns
   3. Allow the user to rename data columns in the csv-file (column aliases);
   4. Allow the user to select data columns that are being printed in the csv-file;
   5. Bring order to columns by column groups;
@@ -43,6 +44,7 @@ maybe:
 */
 
 const csvDelimiter = ";";
+
 let prunedTree;
 let inputFilename;
 
@@ -71,9 +73,6 @@ function uploadJson() {
     reader.readAsText(file);
   }
 }
-
-// const csvLines = jsonToTabular(prunedTree);
-// saveCsvBlob(csvLines, inputFilename);
 
 function parseJson(reader) {
   const pUploadResult = document.getElementById("pUploadResult");
@@ -162,6 +161,10 @@ function treeBuild(jsonTree) {
   const treeNodeMap = new WeakMap();
   treeNodeMap.set(jsonTree, root);
 
+  // jsonNodeNameMap maps the Node-object to the node name.
+  // We use it to keep track of the parent prefixes from the original tree for the node names in the new tree.
+  // Example: if we have {A: {B: 1, C: 2}, B: 3} in the old tree and we want to have {A_B: 1, A_C: 2, B: 3} in the new tree,
+  // then jsonNodeNameMap keeps track of the "A_" prefix as we build the new tree.
   const jsonNodeNameMap = new WeakMap();
   const queue = [jsonTree];
 
@@ -216,7 +219,8 @@ function treeBuild(jsonTree) {
             newNode.name = colName;
             newNode.data.set(colName, nestedElement)
 
-            tree.uniqueCols.add(colName);
+            // todo: this is a weird case. Check this later.
+            tree.uniqueColsNodeNameMap.set(colName, colName);
           }
         }
 
@@ -232,14 +236,13 @@ function treeBuild(jsonTree) {
         // dataElement is a primitive value
         const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
         
-        tree.uniqueCols.add(colName);
         treeNode.data.set(colName, dataElement);
+        tree.uniqueColsNodeNameMap.set(colName, treeNode.name);
       }
     }
   }
   return tree;
 }
-
 
 function jsonToTabular(tree, selectedNodes) {
   /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
@@ -250,29 +253,16 @@ function jsonToTabular(tree, selectedNodes) {
   // We make a hash map for each column in the json 
   // to its index in the resulting csv-file.
 
-//  const selectedCols = new Set();
-//  {
-//    console.log("hee");
-//    const stack = [tree];
-//    while (stack.length > 0) {
-//      const node = stack.pop();
-//      if (selectedNodes.includes(node.name)) {
-//        for (const col of node.data.keys()) {
-//          selectedCols.add(col);
-//        }
-//      }
-//      for (const childNode of node.children) stack.push(childNode);
-//      return;
-//    }
-//  }
-//  console.log(selectedCols);
-
   const colMapping = new Map();
-  Array.from(tree.uniqueCols).forEach(
-    (col, idx) => {
-      colMapping.set(col, idx);
+  {
+    let idx = 0;
+    for (let [colName, nodeName] of tree.uniqueColsNodeNameMap.entries()) {
+      if (selectedNodes.includes(nodeName)) {
+        colMapping.set(colName, idx);
+        idx++;
+      }
     }
-  );
+  }
 
   const ret = [];
   const headerRow = Array.from(colMapping.keys()).join(csvDelimiter) + "\n";
@@ -284,8 +274,6 @@ function jsonToTabular(tree, selectedNodes) {
   while (stack.length > 0) {
     const treeNode = stack.pop(); 
 
-    //if (!selectedNodes.includes(treeNode.name)) continue;
-
     // Variable row is an array where each index correponds to a column.
     // We retrieve the cached row data for each visited inner node.
     let row;
@@ -295,9 +283,11 @@ function jsonToTabular(tree, selectedNodes) {
       row = [...nodeRowCache.get(treeNode.parent)]; // copy array from cache
     }
     
+    // Fill row with column data
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
       if (nodeElement == null) continue; // we don't write nulls to the excel file!
+      if (!colMapping.has(dataKey)) continue; // skip if not in selected columns
 
       // data sanitization 
       nodeElement = nodeElement.toString();
@@ -310,8 +300,11 @@ function jsonToTabular(tree, selectedNodes) {
     }
 
     if (treeNode.isLeaf) {
-      const csvRow = row.join(csvDelimiter) + "\n";
-      ret.push(csvRow);
+      const emptyRow = row.every((x) => x === undefined);
+      if (!emptyRow) {
+        const csvRow = row.join(csvDelimiter) + "\n";
+        ret.push(csvRow);
+      }
     } else {
       // Cache the row array that belongs to the tree node.
       nodeRowCache.set(treeNode, row); 
@@ -326,7 +319,7 @@ function jsonToTabular(tree, selectedNodes) {
 
 function drawColCheckboxes(treeNodes) {
   const rootNodeName = "Base information";
-  const checkAllByDefault = true;
+  const checkAllByDefault = false;
 
   // We assigned a name to each node in the tree.
   // We use these names to represent the "column categories".
@@ -353,7 +346,6 @@ function drawColCheckboxes(treeNodes) {
     checkboxColInput.setAttribute("name"   , checkboxVal);
     checkboxColInput.setAttribute("value"  , checkboxVal);
     checkboxColInput.checked = checkAllByDefault;
-    //checkboxColInput.addEventListener("change", (e) => {console.log(e.target.checked);} );
 
     // add checkbox labels
     const checkboxColLabel = document.createElement("label");
@@ -371,7 +363,7 @@ function drawColCheckboxes(treeNodes) {
 function Tree() {
   this.root  = null;
   this.nodes = [];
-  this.uniqueCols = new Set();
+  this.uniqueColsNodeNameMap = new Map(); // mapping: column -> node name. used for column selection
 }
 
 function Node() {
