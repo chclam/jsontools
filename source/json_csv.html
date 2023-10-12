@@ -9,7 +9,7 @@ Author: Chris Lam (c.lam@cbs.nl)
     <div id="content">
       <h1>CBS JSON to CSV Converter</h1>
       <div id="divUpload">
-        <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="uploadJson()"/>
+        <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
         <div id="divconversionOptions">
           <form id="formColumns">
@@ -17,7 +17,7 @@ Author: Chris Lam (c.lam@cbs.nl)
         </div>
       </div>
       <div id="divDownload" hidden>
-        <a href id="btnDownload"><button onclick="{ generateCsv(); return false; }">Download CSV</button></a>
+        <a href id="btnDownload"><button onclick="{ viewGenerateCsv(); return false; }">Download CSV</button></a>
         <p id="pDownloadFilename"></p>
       </div>
     </div>
@@ -48,7 +48,10 @@ const csvDelimiter = ";";
 let prunedTree;
 let inputFilename;
 
-function uploadJson() {
+/*#######*/
+/* Views */
+/*#######*/
+function viewUploadJson() {
   const [file] = document.getElementById("btnUpload").files;
   const reader = new FileReader();
   inputFilename = file.name;
@@ -61,7 +64,7 @@ function uploadJson() {
       // build a new pruned tree from the obtained json tree
       // and show the checkboxes
       prunedTree = treeBuild(jsonTree);
-      drawColCheckboxes(prunedTree.nodes);
+      viewDrawColCheckboxes(prunedTree.nodes);
 
       // show download button
       const divDownload = document.getElementById("divDownload");
@@ -74,29 +77,50 @@ function uploadJson() {
   }
 }
 
-function parseJson(reader) {
-  const pUploadResult = document.getElementById("pUploadResult");
-  // clear reset application states 
-  // parse data to json
-  let ret = null;
+function viewDrawColCheckboxes(treeNodes) {
+  const rootNodeName = "Base information";
+  const checkAllByDefault = false;
 
-  try {
-    ret = JSON.parse(reader.result); 
-  } catch (e) {
-    pUploadResult.innerHTML = `Parse FAILED: ${e}.<br>`;
-    pUploadResult.innerHTML += "Please upload a valid JSON file.";
+  // We assigned a name to each node in the tree.
+  // We use these names to represent the "column categories".
+  const uniqueNodeNames = new Set();
+  for (const node of treeNodes) {
+    if (node.parent === null) {
+      uniqueNodeNames.add(rootNodeName); // node is root! the node has no name.
+    } else {
+      uniqueNodeNames.add(node.name);
+    }
   }
 
-  if (ret === null) {
-    pUploadResult.innerHTML = "Empty JSON-file!<br>";
-    pUploadResult.innerHTML += "No CSV-file created";
-  } else {
-    pUploadResult.textContent = "Parse SUCCESS";
+  // Add a checkbox for each unique node name.
+  // The user can then select the column categories (node names)
+  // that gets converted into csv.
+  for (const checkboxVal of uniqueNodeNames) {
+    uniqueNodeNames.add(checkboxVal);
+
+    // add checkboxes themselves
+    const checkboxColInput = document.createElement("input");
+    checkboxColInput.setAttribute("type"   , "checkbox");
+    checkboxColInput.setAttribute("class"  , "CheckboxCol");
+    checkboxColInput.setAttribute("id"     , `CheckboxCol_${checkboxVal}`);
+    checkboxColInput.setAttribute("name"   , checkboxVal);
+    checkboxColInput.setAttribute("value"  , checkboxVal);
+    checkboxColInput.checked = checkAllByDefault;
+
+    // add checkbox labels
+    const checkboxColLabel = document.createElement("label");
+    const checkboxText = document.createTextNode(checkboxVal);
+    checkboxColLabel.setAttribute("for", checkboxVal);
+    checkboxColLabel.appendChild(checkboxText);
+    checkboxColLabel.appendChild(document.createElement("br"));
+
+    const formColumns = document.getElementById("formColumns");
+    formColumns.appendChild(checkboxColInput);
+    formColumns.appendChild(checkboxColLabel);
   }
-  return ret;
 }
 
-function generateCsv() {
+function viewGenerateCsv() {
 
   // Get selected checkboxes
   const selectedCols = [];
@@ -120,6 +144,34 @@ function generateCsv() {
   saveCsvBlob(csvLines, inputFilename);
 }
 
+
+/*#######*/
+/* Logic */
+/*#######*/
+
+function parseJson(reader) {
+  const pUploadResult = document.getElementById("pUploadResult");
+  // clear reset application states 
+  // parse data to json
+  let ret = null;
+
+  try {
+    ret = JSON.parse(reader.result); 
+  } catch (e) {
+    pUploadResult.innerHTML = `Parse FAILED: ${e}.<br>`;
+    pUploadResult.innerHTML += "Please upload a valid JSON file.";
+  }
+
+  if (ret === null) {
+    pUploadResult.innerHTML = "Empty JSON-file!<br>";
+    pUploadResult.innerHTML += "No CSV-file created";
+  } else {
+    pUploadResult.textContent = "Parse SUCCESS";
+  }
+  return ret;
+}
+
+
 function saveCsvBlob(csvLines, inputFilename) {
   const a = document.createElement("a");
   const outputFilename = `${inputFilename}.csv`;
@@ -132,18 +184,7 @@ function saveCsvBlob(csvLines, inputFilename) {
   document.body.removeChild(a);
 }
 
-//function saveCsvBlob(csvLines, inputFilename) {
-//  const btnDownload = document.getElementById("btnDownload");
-//  const outputFilename = `${inputFilename}.csv`;
-//
-//  btnDownload.href = window.URL.createObjectURL(new Blob(csvLines, {type: "text/csv"}));
-//  btnDownload.download = outputFilename;
-//
-//  document.getElementById("pDownloadFilename").innerText = outputFilename;
-//  document.getElementById("divDownload").removeAttribute("hidden");
-//}
 
-// build a proper data structure to deal with the tree logic.
 function treeBuild(jsonTree) {
   /* We build our own tree from the source json-tree.
   The new tree is a simplified version of the source json-tree by
@@ -218,9 +259,6 @@ function treeBuild(jsonTree) {
             const newNode = addNode(tree, treeNode);
             newNode.name = colName;
             newNode.data.set(colName, nestedElement)
-
-            // todo: this is a weird case. Check this later.
-            tree.uniqueColsNodeNameMap.set(colName, colName);
           }
         }
 
@@ -235,9 +273,7 @@ function treeBuild(jsonTree) {
       } else {
         // dataElement is a primitive value
         const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
-        
         treeNode.data.set(colName, dataElement);
-        tree.uniqueColsNodeNameMap.set(colName, treeNode.name);
       }
     }
   }
@@ -250,16 +286,20 @@ function jsonToTabular(tree, selectedNodes) {
   Since the paths to the leaves often share inner nodes, we cache the row data for each
   inner node in a mapping (nodeRowCache). */
 
-  // We make a hash map for each column in the json 
+  // colMapping is a hash map for each column 
   // to its index in the resulting csv-file.
-
   const colMapping = new Map();
   {
-    let idx = 0;
-    for (let [colName, nodeName] of tree.uniqueColsNodeNameMap.entries()) {
-      if (selectedNodes.includes(nodeName)) {
-        colMapping.set(colName, idx);
-        idx++;
+    // @speed excessive dereferencing
+    let colIdx = 0;
+    for (const node of tree.nodes) {
+      if (!selectedNodes.includes(node.name)) continue;
+
+      for (const colName of node.data.keys()) { 
+        if (!colMapping.has(colName)) {
+          colMapping.set(colName, colIdx); 
+          colIdx++;
+        }
       }
     }
   }
@@ -286,22 +326,22 @@ function jsonToTabular(tree, selectedNodes) {
     // Fill row with column data
     for (let [dataKey, nodeElement] of treeNode.data.entries()) {
 
-      if (nodeElement == null) continue; // we don't write nulls to the excel file!
+      if (nodeElement === null) continue; // we don't write nulls to the excel file!
       if (!colMapping.has(dataKey)) continue; // skip if not in selected columns
 
       // data sanitization 
       nodeElement = nodeElement.toString();
       nodeElement = nodeElement.replace("\"", "\"\"");
       nodeElement = nodeElement.trim();
-      if (nodeElement.includes(csvDelimiter)) nodeElement = "\"" + nodeElement + "\"";
+      if (nodeElement.includes(csvDelimiter)) nodeElement = `\"${nodeElement}\"`;
 
       const colIdx = colMapping.get(dataKey);
       row[colIdx] = nodeElement;
     }
 
     if (treeNode.isLeaf) {
-      const emptyRow = row.every((x) => x === undefined);
-      if (!emptyRow) {
+      const isEmptyRow = row.every((x) => x === undefined);
+      if (!isEmptyRow) {
         const csvRow = row.join(csvDelimiter) + "\n";
         ret.push(csvRow);
       }
@@ -317,53 +357,10 @@ function jsonToTabular(tree, selectedNodes) {
   return ret;
 }
 
-function drawColCheckboxes(treeNodes) {
-  const rootNodeName = "Base information";
-  const checkAllByDefault = false;
-
-  // We assigned a name to each node in the tree.
-  // We use these names to represent the "column categories".
-  const uniqueNodeNames = new Set();
-  for (const node of treeNodes) {
-    if (node.parent === null) {
-      uniqueNodeNames.add(rootNodeName); // node is root! the node has no name.
-    } else {
-      uniqueNodeNames.add(node.name);
-    }
-  }
-
-  // Add a checkbox for each unique node name.
-  // The user can then select the column categories (node names)
-  // that gets converted into csv.
-  for (const checkboxVal of uniqueNodeNames) {
-    uniqueNodeNames.add(checkboxVal);
-
-    // add checkboxes themselves
-    const checkboxColInput = document.createElement("input");
-    checkboxColInput.setAttribute("type"   , "checkbox");
-    checkboxColInput.setAttribute("class"  , "CheckboxCol");
-    checkboxColInput.setAttribute("id"     , `CheckboxCol_${checkboxVal}`);
-    checkboxColInput.setAttribute("name"   , checkboxVal);
-    checkboxColInput.setAttribute("value"  , checkboxVal);
-    checkboxColInput.checked = checkAllByDefault;
-
-    // add checkbox labels
-    const checkboxColLabel = document.createElement("label");
-    const checkboxText = document.createTextNode(checkboxVal);
-    checkboxColLabel.setAttribute("for", checkboxVal);
-    checkboxColLabel.appendChild(checkboxText);
-    checkboxColLabel.appendChild(document.createElement("br"));
-
-    const formColumns = document.getElementById("formColumns");
-    formColumns.appendChild(checkboxColInput);
-    formColumns.appendChild(checkboxColLabel);
-  }
-}
 
 function Tree() {
   this.root  = null;
   this.nodes = [];
-  this.uniqueColsNodeNameMap = new Map(); // mapping: column -> node name. used for column selection. For an array of unique columns, get the keys of the mapping.
 }
 
 function Node() {
