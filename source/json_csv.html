@@ -11,9 +11,11 @@ Author: Chris Lam (c.lam@cbs.nl)
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
-        <div id="divconversionOptions">
-          <form id="formColumns">
-          </form>
+        <div id="divConversionOptions">
+          <button type="button" id="btnSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(true); return false; }">Select All</button>
+          <button type="button" id="btnDeSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(false); return false; }">Deselect All</button>
+          <ul id="ulColumns">
+          </ul>
         </div>
       </div>
       <div id="divDownload" hidden>
@@ -27,16 +29,17 @@ Author: Chris Lam (c.lam@cbs.nl)
 <script>
 /*
 done: 
-  1. Handle empty json files. 
-  2. The columns are the other way around;
+  * Handle empty json files. 
+  * The columns are the other way around;
 
 todo: 
-  3. Filter out empty columns
-  3. Allow the user to rename data columns in the csv-file (column aliases);
-  4. Allow the user to select data columns that are being printed in the csv-file;
-  5. Bring order to columns by column groups;
-  6. Allow the user to deselect the empty columns;
-  7. Sort the columns on ;
+  1. Filter out empty columns
+  2. Allow the user to rename data columns in the csv-file (column aliases);
+  3. Allow the user to select data columns that are being printed in the csv-file;
+  4. Bring order to columns by column groups;
+  5. Allow the user to deselect the empty columns;
+  6. Sort the columns by whether it is empty or not;
+  7. Some initial statistics about the input file when uploaded.
 
 maybe:
   8. Onderscheidsteken: Allow the user to define the delimiter
@@ -51,6 +54,7 @@ let inputFilename;
 /*#######*/
 /* Views */
 /*#######*/
+
 function viewUploadJson() {
   const [file] = document.getElementById("btnUpload").files;
   const reader = new FileReader();
@@ -77,20 +81,21 @@ function viewUploadJson() {
   }
 }
 
-function viewDrawColCheckboxes(treeNodes) {
-  const rootNodeName = "Base information";
-  const checkAllByDefault = false;
+function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
+  const checkAllByDefault = true;
 
   // We assigned a name to each node in the tree.
   // We use these names to represent the "column categories".
   const uniqueNodeNames = new Set();
   for (const node of treeNodes) {
-    if (node.parent === null) {
-      uniqueNodeNames.add(rootNodeName); // node is root! the node has no name.
-    } else {
-      uniqueNodeNames.add(node.name);
+    if (node.parent !== null) {
+      uniqueNodeNames.add(node.name); // do not add checkbox if it is a root
     }
   }
+
+  const ulColumns = document.getElementById("ulColumns");
+
+  if (clearExisting) ulColumns.innerHTML = "";
 
   // Add a checkbox for each unique node name.
   // The user can then select the column categories (node names)
@@ -100,11 +105,11 @@ function viewDrawColCheckboxes(treeNodes) {
 
     // add checkboxes themselves
     const checkboxColInput = document.createElement("input");
-    checkboxColInput.setAttribute("type"   , "checkbox");
-    checkboxColInput.setAttribute("class"  , "CheckboxCol");
-    checkboxColInput.setAttribute("id"     , `CheckboxCol_${checkboxVal}`);
-    checkboxColInput.setAttribute("name"   , checkboxVal);
-    checkboxColInput.setAttribute("value"  , checkboxVal);
+    checkboxColInput.setAttribute("type" , "checkbox");
+    checkboxColInput.setAttribute("class", "CheckboxCol");
+    checkboxColInput.setAttribute("id"   , `CheckboxCol_${checkboxVal}`);
+    checkboxColInput.setAttribute("name" , checkboxVal);
+    checkboxColInput.setAttribute("value", checkboxVal);
     checkboxColInput.checked = checkAllByDefault;
 
     // add checkbox labels
@@ -114,14 +119,14 @@ function viewDrawColCheckboxes(treeNodes) {
     checkboxColLabel.appendChild(checkboxText);
     checkboxColLabel.appendChild(document.createElement("br"));
 
-    const formColumns = document.getElementById("formColumns");
-    formColumns.appendChild(checkboxColInput);
-    formColumns.appendChild(checkboxColLabel);
+    const checkboxColLi = document.createElement("li");
+    checkboxColLi.appendChild(checkboxColInput);
+    checkboxColLi.appendChild(checkboxColLabel);
+    ulColumns.appendChild(checkboxColLi);
   }
 }
 
 function viewGenerateCsv() {
-
   // Get selected checkboxes
   const selectedCols = [];
   {
@@ -142,6 +147,14 @@ function viewGenerateCsv() {
 
   const csvLines = jsonToTabular(prunedTree, selectedCols);
   saveCsvBlob(csvLines, inputFilename);
+}
+
+function viewSetAllCheckboxes(newState) {
+  console.assert(typeof(newState) == "boolean");
+  const allCheckBoxes = document.querySelectorAll(".checkBoxCol");
+  for (const checkbox of allCheckBoxes) {
+    checkbox.checked = newState;
+  }
 }
 
 
@@ -290,10 +303,11 @@ function jsonToTabular(tree, selectedNodes) {
   // to its index in the resulting csv-file.
   const colMapping = new Map();
   {
-    // @speed excessive dereferencing
+    // @speed, excessive dereferencing
     let colIdx = 0;
     for (const node of tree.nodes) {
-      if (!selectedNodes.includes(node.name)) continue;
+      // root of the tree is always printed in the csv-file.
+      if (node.parent !== null && !selectedNodes.includes(node.name)) continue;
 
       for (const colName of node.data.keys()) { 
         if (!colMapping.has(colName)) {
@@ -392,20 +406,50 @@ function addNode(tree, parentNode=null) {
 </script>
 
 <style>
+  h1 {
+    color: rgb(39, 29, 108);
+    font-size: 36px;
+  }
+
+  h2 {
+    color: rgb(9, 29, 35);
+    font-size: 20px;
+  }
+  
   body {
     font-family: helvetica, arial, sans-serif;
-    background-color: rgb(189, 188, 188);
+    background-color: rgb(233, 233, 233);
+    color: rgb(9, 29, 35);
+    font-size: 16px;
   }
 
   button, input::file-selector-button {
+    border-color: rgb(0, 161, 205);
+    background-color: rgb(5, 128, 161);
+    color: rgb(255, 255, 255);
     padding: 10px 10px;
   }
 
+  button {
+    border-color: rgb(0, 161, 205);
+    background-color: rgb(5, 128, 161);
+    color: rgb(255, 255, 255);
+  }
+
+  ul {
+    list-style: none;
+  }
+
   /* Classes */
+  .btnSecondary {
+    background-color: rgb(189, 188, 188);
+    border-color: rgb(233, 233, 233);
+    color: rgb(9, 29, 35);
+  }
 
   /* Ids */
   #content {
-    background-color: rgb(233, 233, 233);
+    background-color: rgb(255, 255, 255);
 
     margin-left : 10%;
     margin-right: 10%;
