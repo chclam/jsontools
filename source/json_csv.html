@@ -57,9 +57,13 @@ let inputFilename;
 
 function viewUploadJson() {
   const [file] = document.getElementById("btnUpload").files;
-  const reader = new FileReader();
+
+  if (file === undefined) return;
+
   inputFilename = file.name;
   inputFilename = inputFilename.replace(".json", "");
+
+  const reader = new FileReader();
   reader.addEventListener("load", () => {
     // todo: reset download button?
     const jsonTree = parseJson(reader);
@@ -86,10 +90,11 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
 
   // We assigned a name to each node in the tree.
   // We use these names to represent the "column categories".
-  const uniqueNodeNames = new Set();
+  const uniqueNodeNames = new Map();
   for (const node of treeNodes) {
     if (node.parent !== null) {
-      uniqueNodeNames.add(node.name); // do not add checkbox if it is a root
+      // do not add checkbox if it is a root
+      uniqueNodeNames.set(node.name, node.data.keys()); 
     }
   }
 
@@ -100,9 +105,7 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
   // Add a checkbox for each unique node name.
   // The user can then select the column categories (node names)
   // that gets converted into csv.
-  for (const checkboxVal of uniqueNodeNames) {
-    uniqueNodeNames.add(checkboxVal);
-
+  for (const checkboxVal of uniqueNodeNames.keys()) {
     // add checkboxes themselves
     const checkboxColInput = document.createElement("input");
     checkboxColInput.setAttribute("type" , "checkbox");
@@ -115,18 +118,42 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
     // add checkbox labels
     const checkboxColLabel = document.createElement("label");
     const checkboxText = document.createTextNode(checkboxVal);
+    const labelTriangle = document.createTextNode("\u25B4");
     checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
+    checkboxColLabel.appendChild(labelTriangle);
     checkboxColLabel.appendChild(document.createElement("br"));
-    checkboxColLabel.addEventListener("click", () => {checkboxColInput.checked = !checkboxColInput.checked});
+    //checkboxColLabel.addEventListener("click", () => { checkboxColInput.checked = !checkboxColInput.checked; });
+
+    const nodeCols = document.createElement("ul");
+    nodeCols.hidden = true;
+    
+    // Add a list of column names under each node name
+    for (const colName of uniqueNodeNames.get(checkboxVal)) {
+      const col = document.createElement("li");
+      col.innerText = colName;
+      nodeCols.appendChild(col);
+    }
+
+    // define behavior when node name is clicked
+    checkboxColLabel.addEventListener("click", () => {
+      nodeCols.hidden = !nodeCols.hidden;
+      // Set triangle behavior: triangle up when hidden, down when not.
+      if (nodeCols.hidden) {
+        labelTriangle.nodeValue = "\u25B4";
+      } else {
+        labelTriangle.nodeValue = "\u25BE";
+      }
+    });
 
     const checkboxColLi = document.createElement("li");
     checkboxColLi.appendChild(checkboxColInput);
     checkboxColLi.appendChild(checkboxColLabel);
+    checkboxColLi.appendChild(nodeCols); // temp
     ulColumns.appendChild(checkboxColLi);
   }
 
-  // show the div
+  // show/unhide the div for the checkboxes
   const divConvOpts = document.getElementById("divConversionOptions");
   divConvOpts.removeAttribute("hidden");
 }
