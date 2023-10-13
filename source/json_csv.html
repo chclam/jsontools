@@ -11,7 +11,7 @@ Author: Chris Lam (c.lam@cbs.nl)
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
-        <div id="divConversionOptions">
+        <div id="divConversionOptions" hidden>
           <button type="button" id="btnSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(true); return false; }">Select All</button>
           <button type="button" id="btnDeSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(false); return false; }">Deselect All</button>
           <ul id="ulColumns">
@@ -124,6 +124,10 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
     checkboxColLi.appendChild(checkboxColLabel);
     ulColumns.appendChild(checkboxColLi);
   }
+
+  // show the div
+  const divConvOpts = document.getElementById("divConversionOptions");
+  divConvOpts.removeAttribute("hidden");
 }
 
 function viewGenerateCsv() {
