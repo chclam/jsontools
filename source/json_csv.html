@@ -118,6 +118,7 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
     checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
     checkboxColLabel.appendChild(document.createElement("br"));
+    checkboxColLabel.addEventListener("click", () => {checkboxColInput.checked = !checkboxColInput.checked});
 
     const checkboxColLi = document.createElement("li");
     checkboxColLi.appendChild(checkboxColInput);
