@@ -7,12 +7,15 @@ Author: Chris Lam (c.lam@cbs.nl)
   </head>
   <body>
     <div id="content">
-      <h1>CBS JSON to CSV Converter</h1>
+      <h1>JSON to CSV Converter</h1>
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
         <div id="divConversionOptions" hidden>
           <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
+          <br>
+          <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols">
+          <label for="removeEmptyCols">Remove empty columns</label>
           <ul id="ulColumns">
           </ul>
         </div>
@@ -199,7 +202,7 @@ function viewGenerateCsv() {
     return;
   } 
 
-  const csvLines = jsonToTabular(prunedTree, selectedCols);
+  const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols);
   saveCsvBlob(csvLines, inputFilename);
 }
 
@@ -358,11 +361,13 @@ function treeBuild(jsonTree) {
   return tree;
 }
 
-function jsonToTabular(tree, selectedNodes) {
+function jsonToTabular(tree, selectedNodes, nonEmptyCols) {
   /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
   inner node in a mapping (nodeRowCache). */
+
+  const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
 
   // colMapping is a hash map for each column 
   // to its index in the resulting csv-file.
@@ -375,7 +380,10 @@ function jsonToTabular(tree, selectedNodes) {
       if (node.parent !== null && !selectedNodes.includes(node.name)) continue;
 
       for (const colName of node.data.keys()) { 
-        if (!colMapping.has(colName)) {
+        // addEmptyColumn is only false if checked=true and col is empty.
+        const addEmptyColumn = (!checkboxRemoveEmptyColumns.checked) || nonEmptyCols.has(colName); 
+
+        if (addEmptyColumn && !colMapping.has(colName)) {
           colMapping.set(colName, colIdx); 
           colIdx++;
         }
@@ -407,6 +415,7 @@ function jsonToTabular(tree, selectedNodes) {
 
       if (nodeElement === null) continue; // we don't write nulls to the excel file!
       if (!colMapping.has(dataKey)) continue; // skip if not in selected columns
+      if (checkboxRemoveEmptyColumns.checked && !nonEmptyCols.has(dataKey)) continue; // skip if the column is empty anyway
 
       // data sanitization 
       nodeElement = nodeElement.toString();
