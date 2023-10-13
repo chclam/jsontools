@@ -12,8 +12,8 @@ Author: Chris Lam (c.lam@cbs.nl)
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
         <div id="divConversionOptions" hidden>
-          <button type="button" id="btnSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(true); return false; }">Select All</button>
-          <button type="button" id="btnDeSelectAll" class="btnSecondary" onclick="{ viewSetAllCheckboxes(false); return false; }">Deselect All</button>
+          <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(true); return false; }">Select All</button>
+          <button type="button" id="btnDeSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(false); return false; }">Deselect All</button>
           <ul id="ulColumns">
           </ul>
         </div>
@@ -76,7 +76,7 @@ function viewUploadJson() {
 
       // show download button
       const divDownload = document.getElementById("divDownload");
-      divDownload.removeAttribute("hidden");
+      divDownload.hidden = false;
     }
   }, false);
 
@@ -155,7 +155,7 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
 
   // show/unhide the div for the checkboxes
   const divConvOpts = document.getElementById("divConversionOptions");
-  divConvOpts.removeAttribute("hidden");
+  divConvOpts.hidden = false;
 }
 
 function viewGenerateCsv() {
@@ -479,6 +479,10 @@ function addNode(tree, parentNode=null) {
     color: rgb(9, 29, 35);
   }
 
+  .btnSmall {
+    padding: 3px 3px;
+  }
+
   /* Ids */
   #content {
     background-color: rgb(255, 255, 255);
@@ -488,5 +492,6 @@ function addNode(tree, parentNode=null) {
 
     padding: 5px 20px;
   }
+  
 
 </style>
