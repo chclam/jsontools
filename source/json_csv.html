@@ -12,8 +12,7 @@ Author: Chris Lam (c.lam@cbs.nl)
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         <p id="pUploadResult"></p>
         <div id="divConversionOptions" hidden>
-          <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(true); return false; }">Select All</button>
-          <button type="button" id="btnDeSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(false); return false; }">Deselect All</button>
+          <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
           <ul id="ulColumns">
           </ul>
         </div>
@@ -50,6 +49,7 @@ const csvDelimiter = ";";
 
 let prunedTree;
 let inputFilename;
+let nonEmptyCols;
 
 /*#######*/
 /* Views */
@@ -72,7 +72,17 @@ function viewUploadJson() {
       // build a new pruned tree from the obtained json tree
       // and show the checkboxes
       prunedTree = treeBuild(jsonTree);
-      viewDrawColCheckboxes(prunedTree.nodes);
+
+      { // get non empty columns for filtering later
+        nonEmptyCols = new Set();
+        for (const node of prunedTree.nodes) {
+          for (const [col, val] of node.data.entries()) {
+            if (val !== null) nonEmptyCols.add(col);
+          }
+        }
+      }
+
+      viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols);
 
       // show download button
       const divDownload = document.getElementById("divDownload");
@@ -85,7 +95,7 @@ function viewUploadJson() {
   }
 }
 
-function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
+function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
   const checkAllByDefault = true;
 
   // We assigned a name to each node in the tree.
@@ -117,32 +127,44 @@ function viewDrawColCheckboxes(treeNodes, clearExisting=true) {
 
     // add checkbox labels
     const checkboxColLabel = document.createElement("label");
-    const checkboxText = document.createTextNode(checkboxVal);
-    const labelTriangle = document.createTextNode("\u25B4");
+    const checkboxText = document.createTextNode(`${checkboxVal} `);
+    const labelTriangle = document.createTextNode("\u25BE");
     checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
     checkboxColLabel.appendChild(labelTriangle);
     checkboxColLabel.appendChild(document.createElement("br"));
     //checkboxColLabel.addEventListener("click", () => { checkboxColInput.checked = !checkboxColInput.checked; });
 
-    const nodeCols = document.createElement("ul");
+    const nodeCols = document.createElement("div");
+    const nodeColsNonEmpty = document.createElement("ul");
+    const nodeColsEmpty = document.createElement("ul");
+    nodeCols.appendChild(nodeColsNonEmpty);
+    nodeCols.appendChild(nodeColsEmpty);
     nodeCols.hidden = true;
     
     // Add a list of column names under each node name
     for (const colName of uniqueNodeNames.get(checkboxVal)) {
       const col = document.createElement("li");
       col.innerText = colName;
-      nodeCols.appendChild(col);
+
+      if (nonEmptyCols.has(colName)) {
+        nodeColsNonEmpty.appendChild(col);
+      } else {
+        // layout of the column names when empty
+        col.innerText += " (empty)";
+        col.classList.add("txtLight");
+        nodeColsEmpty.appendChild(col);
+      }
     }
 
-    // define behavior when node name is clicked
+    // define behavior of the label when clicked
     checkboxColLabel.addEventListener("click", () => {
       nodeCols.hidden = !nodeCols.hidden;
       // Set triangle behavior: triangle up when hidden, down when not.
       if (nodeCols.hidden) {
-        labelTriangle.nodeValue = "\u25B4";
-      } else {
         labelTriangle.nodeValue = "\u25BE";
+      } else {
+        labelTriangle.nodeValue = "\u25B4";
       }
     });
 
@@ -181,9 +203,20 @@ function viewGenerateCsv() {
   saveCsvBlob(csvLines, inputFilename);
 }
 
-function viewSetAllCheckboxes(newState) {
-  console.assert(typeof(newState) == "boolean");
+function viewSetAllCheckboxes() {
   const allCheckBoxes = document.querySelectorAll(".checkBoxCol");
+
+  // newState is true if there is at least one checkbox unchecked.
+  // i.e. the behavior is to set all checkboxes to checked if there is at least one unchecked.
+  // if all is already checked, then uncheck all (set to false).
+  let newState = false;
+  for (const checkbox of allCheckBoxes) {
+    if (!checkbox.checked) {
+      newState = true;
+      break;
+    }
+  }
+
   for (const checkbox of allCheckBoxes) {
     checkbox.checked = newState;
   }
@@ -481,6 +514,10 @@ function addNode(tree, parentNode=null) {
 
   .btnSmall {
     padding: 3px 3px;
+  }
+
+  .txtLight {
+    color: rgb(135, 135, 135);
   }
 
   /* Ids */
