@@ -7,22 +7,21 @@ Author: Chris Lam (c.lam@cbs.nl)
   </head>
   <body>
     <div id="content">
-      <h1>JSON to CSV Converter</h1>
+      <h1>CBS JSON to CSV Converter</h1>
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
-        <p id="pUploadResult"></p>
+        <h2 id="pUploadResult"></h2>
         <div id="divConversionOptions" hidden>
+          <h4>Column Selection</h4>
           <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
-          <br>
-          <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols">
-          <label for="removeEmptyCols">Remove empty columns</label>
           <ul id="ulColumns">
           </ul>
         </div>
       </div>
       <div id="divDownload" hidden>
-        <a href id="btnDownload"><button onclick="{ viewGenerateCsv(); return false; }">Download CSV</button></a>
-        <p id="pDownloadFilename"></p>
+        <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
+        <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols">
+        <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV</label>
       </div>
     </div>
   </body>
@@ -64,7 +63,6 @@ function viewUploadJson() {
   if (file === undefined) return;
 
   inputFilename = file.name;
-  inputFilename = inputFilename.replace(".json", "");
 
   const reader = new FileReader();
   reader.addEventListener("load", () => {
@@ -131,7 +129,7 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
     // add checkbox labels
     const checkboxColLabel = document.createElement("label");
     const checkboxText = document.createTextNode(`${checkboxVal} `);
-    const labelTriangle = document.createTextNode("\u25BE");
+    const labelTriangle = document.createTextNode("\u23F7");
     checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
     checkboxColLabel.appendChild(labelTriangle);
@@ -165,16 +163,16 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
       nodeCols.hidden = !nodeCols.hidden;
       // Set triangle behavior: triangle up when hidden, down when not.
       if (nodeCols.hidden) {
-        labelTriangle.nodeValue = "\u25BE";
+        labelTriangle.nodeValue = "\u23F7";
       } else {
-        labelTriangle.nodeValue = "\u25B4";
+        labelTriangle.nodeValue = "\u23F6";
       }
     });
 
     const checkboxColLi = document.createElement("li");
     checkboxColLi.appendChild(checkboxColInput);
     checkboxColLi.appendChild(checkboxColLabel);
-    checkboxColLi.appendChild(nodeCols); // temp
+    checkboxColLi.appendChild(nodeCols);
     ulColumns.appendChild(checkboxColLi);
   }
 
@@ -232,8 +230,6 @@ function viewSetAllCheckboxes() {
 
 function parseJson(reader) {
   const pUploadResult = document.getElementById("pUploadResult");
-  // clear reset application states 
-  // parse data to json
   let ret = null;
 
   try {
@@ -244,10 +240,9 @@ function parseJson(reader) {
   }
 
   if (ret === null) {
-    pUploadResult.innerHTML = "Empty JSON-file!<br>";
-    pUploadResult.innerHTML += "No CSV-file created";
+    pUploadResult.innerHTML = "Empty JSON-file! No CSV-file created.";
   } else {
-    pUploadResult.textContent = "Parse SUCCESS";
+    pUploadResult.innerHTML = inputFilename;
   }
   return ret;
 }
@@ -255,7 +250,7 @@ function parseJson(reader) {
 
 function saveCsvBlob(csvLines, inputFilename) {
   const a = document.createElement("a");
-  const outputFilename = `${inputFilename}.csv`;
+  const outputFilename = inputFilename.replace(".json", ".csv");
 
   a.href = window.URL.createObjectURL(new Blob(csvLines, {type: "text/csv"}));
   a.download = outputFilename;
@@ -482,36 +477,51 @@ function addNode(tree, parentNode=null) {
 <style>
   h1 {
     color: rgb(39, 29, 108);
-    font-size: 36px;
+    font-size: 24pt;
+    margin: 0px;
+    padding: 0pt 0pt 24pt 0pt;
   }
 
   h2 {
     color: rgb(9, 29, 35);
-    font-size: 20px;
+    font-size: 16pt;
+    margin-bottom: 24pt;
+    margin-top: 24pt;
+  }
+  
+  h3 {
+    font-size: 14pt;
+  }
+
+  h4 {
+    font-size: 12pt;
   }
   
   body {
     font-family: helvetica, arial, sans-serif;
     background-color: rgb(233, 233, 233);
     color: rgb(9, 29, 35);
-    font-size: 16px;
+    font-size: 12pt;
   }
 
   button, input::file-selector-button {
     border-color: rgb(0, 161, 205);
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
-    padding: 10px 10px;
+    padding: 8pt 8pt;
   }
 
   button {
     border-color: rgb(0, 161, 205);
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
+    margin-right: 12pt;
+
   }
 
   ul {
     list-style: none;
+    padding-left: 24pt;
   }
 
   /* Classes */
@@ -536,8 +546,11 @@ function addNode(tree, parentNode=null) {
     margin-left : 10%;
     margin-right: 10%;
 
-    padding: 5px 20px;
+    padding: 24pt;
   }
-  
+
+  #ulColumns {
+    padding-left: 0px;
+  }
 
 </style>
