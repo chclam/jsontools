@@ -10,7 +10,8 @@ Author: Chris Lam (c.lam@cbs.nl)
       <h1>CBS JSON to CSV Converter</h1>
       <div id="divUpload">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
-        <h2 id="pUploadResult"></h2>
+        <h2 id="h2FileName"></h2>
+        <div id="divErrorMsg" hidden></div>
         <div id="divConversionOptions" hidden>
           <h4>Column Selection</h4>
           <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
@@ -20,7 +21,7 @@ Author: Chris Lam (c.lam@cbs.nl)
       </div>
       <div id="divDownload" hidden>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
-        <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols">
+        <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
         <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV</label>
       </div>
     </div>
@@ -196,12 +197,15 @@ function viewGenerateCsv() {
   }
 
   if (selectedCols.length === 0) {
-    console.log("No columns selected!");
-    return;
-  } 
+    const divErrorMsg = document.getElementById("divErrorMsg");
+    divErrorMsg.innerText = "No columns selected!";
+    divErrorMsg.hidden = false;
+  } else {
+    divErrorMsg.hidden = true;
 
-  const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols);
-  saveCsvBlob(csvLines, inputFilename);
+    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols);
+    saveCsvBlob(csvLines, inputFilename);
+  }
 }
 
 function viewSetAllCheckboxes() {
@@ -229,20 +233,24 @@ function viewSetAllCheckboxes() {
 /*#######*/
 
 function parseJson(reader) {
-  const pUploadResult = document.getElementById("pUploadResult");
+  const h2FileName  = document.getElementById("h2FileName");
+  const divErrorMsg = document.getElementById("divErrorMsg");
   let ret = null;
 
   try {
     ret = JSON.parse(reader.result); 
   } catch (e) {
-    pUploadResult.innerHTML = `Parse FAILED: ${e}.<br>`;
-    pUploadResult.innerHTML += "Please upload a valid JSON file.";
+    divErrorMsg.innerHTML = `Parse FAILED: ${e}.<br> Please upload a valid JSON file.`;
+    divErrorMsg.hidden = false;
   }
 
   if (ret === null) {
-    pUploadResult.innerHTML = "Empty JSON-file! No CSV-file created.";
+    divErrorMsg.innerHTML = `Empty JSON-file! No CSV-file created for: <br> ${inputFilename}`;
+    divErrorMsg.hidden = false;
   } else {
-    pUploadResult.innerHTML = inputFilename;
+    h2FileName.innerText = `File: ${inputFilename}`;
+    divErrorMsg.innerText = "";
+    divErrorMsg.hidden = true;
   }
   return ret;
 }
@@ -495,6 +503,7 @@ function addNode(tree, parentNode=null) {
 
   h4 {
     font-size: 12pt;
+    margin: 0pt 0pt 12pt 0pt;
   }
   
   body {
@@ -508,7 +517,7 @@ function addNode(tree, parentNode=null) {
     border-color: rgb(0, 161, 205);
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
-    padding: 8pt 8pt;
+    padding: 8pt 12pt;
   }
 
   button {
@@ -516,12 +525,13 @@ function addNode(tree, parentNode=null) {
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
     margin-right: 12pt;
-
+    padding: 8pt 12pt;
   }
 
   ul {
     list-style: none;
     padding-left: 24pt;
+    margin: 0pt;
   }
 
   /* Classes */
@@ -532,7 +542,8 @@ function addNode(tree, parentNode=null) {
   }
 
   .btnSmall {
-    padding: 3px 3px;
+    padding: 4pt 4pt;
+    margin-bottom: 12pt;
   }
 
   .txtLight {
@@ -551,6 +562,14 @@ function addNode(tree, parentNode=null) {
 
   #ulColumns {
     padding-left: 0px;
+    margin-bottom: 12pt;
+  }
+
+  #divErrorMsg {
+    background-color: rgb(229, 95, 91);
+    color: white;
+    padding: 12pt;
+    margin-bottom: 12pt;
   }
 
 </style>
