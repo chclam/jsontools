@@ -19,9 +19,10 @@ Author: Chris Lam (c.lam@cbs.nl)
       </div>
       <div id="divConversionOptions" class="divContent" hidden>
         <h3>Column Selection</h3>
-        <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
-        <ul id="ulColumns">
-        </ul>
+        <input id="checkboxSelectAll" type="checkbox" checked onchange="{ viewSetAllCheckboxes(); return false; }">
+        <label for="checkboxSelectAll"><b>All Columns</b></label>
+        <hr>
+        <ul id="ulColumns"></ul>
       </div>
       <div id="divDownload" hidden>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
@@ -147,15 +148,27 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
     checkboxColInput.setAttribute("value", checkboxVal);
     checkboxColInput.checked = checkAllByDefault;
 
+    // add behavior for the select all checkbox when a checkbox 
+    // in the list is selected.
+    checkboxColInput.addEventListener("change", function() {
+      const checkboxSelectAll = document.getElementById("checkboxSelectAll");
+      const allSelected = viewAllCheckboxSelected();
+
+      if (allSelected) {
+        checkboxSelectAll.checked = true;
+      } else {
+        checkboxSelectAll.checked = false;
+      }
+    });
+
     // add checkbox labels
     const checkboxColLabel = document.createElement("label");
-    const checkboxText = document.createTextNode(`${checkboxVal} `);
+    const checkboxText = document.createTextNode(` ${checkboxVal} `);
     const labelTriangle = document.createTextNode("\u23F7");
     checkboxColLabel.setAttribute("for", checkboxVal);
     checkboxColLabel.appendChild(checkboxText);
     checkboxColLabel.appendChild(labelTriangle);
     checkboxColLabel.appendChild(document.createElement("br"));
-    //checkboxColLabel.addEventListener("click", () => { checkboxColInput.checked = !checkboxColInput.checked; });
 
     const nodeCols = document.createElement("div");
     const nodeColsNonEmpty = document.createElement("ul");
@@ -179,7 +192,8 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
       }
     }
 
-    // define behavior of the label when clicked
+    // behavior for showing columns under each item and
+    // changing the label triangle
     checkboxColLabel.addEventListener("click", () => {
       nodeCols.hidden = !nodeCols.hidden;
       // Set triangle behavior: triangle up when hidden, down when not.
@@ -200,6 +214,30 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
   // show/unhide the div for the checkboxes
   const divConvOpts = document.getElementById("divConversionOptions");
   divConvOpts.hidden = false;
+}
+
+function viewSetAllCheckboxes() {
+  const allCheckBoxes = document.querySelectorAll(".checkBoxCol");
+
+  // newState is true if there is at least one checkbox unchecked.
+  // i.e. the behavior is to set all checkboxes to checked if there is at least one unchecked.
+  // if all is already checked, then uncheck all (set to false).
+  const newState = !viewAllCheckboxSelected();
+
+  for (const checkbox of allCheckBoxes) {
+    checkbox.checked = newState;
+  }
+}
+
+function viewAllCheckboxSelected() {
+  const allCheckBoxes = document.querySelectorAll(".checkboxCol");
+
+  for (const checkbox of allCheckBoxes) {
+    if (!checkbox.checked) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function viewGenerateCsv() {
@@ -228,24 +266,6 @@ function viewGenerateCsv() {
   }
 }
 
-function viewSetAllCheckboxes() {
-  const allCheckBoxes = document.querySelectorAll(".checkBoxCol");
-
-  // newState is true if there is at least one checkbox unchecked.
-  // i.e. the behavior is to set all checkboxes to checked if there is at least one unchecked.
-  // if all is already checked, then uncheck all (set to false).
-  let newState = false;
-  for (const checkbox of allCheckBoxes) {
-    if (!checkbox.checked) {
-      newState = true;
-      break;
-    }
-  }
-
-  for (const checkbox of allCheckBoxes) {
-    checkbox.checked = newState;
-  }
-}
 
 function viewWriteStatsTable(table, uniqueCols, nonEmptyCols, clearExisting=true) {
 
@@ -580,6 +600,12 @@ function addNode(tree, parentNode=null) {
 
   td {
     padding-right: 12pt;
+  }
+
+  hr {
+    width: 256pt;
+    text-align: left;
+    margin: 6pt 0pt 6pt 0pt;
   }
 
   /* Classes */
