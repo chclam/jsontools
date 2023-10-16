@@ -8,16 +8,20 @@ Author: Chris Lam (c.lam@cbs.nl)
   <body>
     <div id="content">
       <h1>CBS JSON to CSV Converter</h1>
-      <div id="divUpload">
+      <div class="divContent">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
-        <h2 id="h2FileName"></h2>
-        <div id="divErrorMsg" hidden></div>
-        <div id="divConversionOptions" hidden>
-          <h4>Column Selection</h4>
-          <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
-          <ul id="ulColumns">
-          </ul>
-        </div>
+      </div>
+      <div id="divErrorMsg" hidden></div>
+      <h2 id="h2FileName"></h2>
+      <div id="divFileInfo" class="divContent" hidden>
+        <h3>File Information</h3>
+        <table id="tableStatsColumns"></table>
+      </div>
+      <div id="divConversionOptions" class="divContent" hidden>
+        <h3>Column Selection</h3>
+        <button type="button" id="btnSelectAll" class="btnSecondary btnSmall" onclick="{ viewSetAllCheckboxes(); return false; }">(De)select All</button>
+        <ul id="ulColumns">
+        </ul>
       </div>
       <div id="divDownload" hidden>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
@@ -33,13 +37,13 @@ Author: Chris Lam (c.lam@cbs.nl)
 done: 
   * Handle empty json files. 
   * The columns are the other way around;
+  1. Filter out empty columns
+  3. Allow the user to select data columns that are being printed in the csv-file;
+  4. Bring order to columns by column groups (solved by having a more sensible default column order)
+  5. Allow the user to deselect the empty columns;
 
 todo: 
-  1. Filter out empty columns
   2. Allow the user to rename data columns in the csv-file (column aliases);
-  3. Allow the user to select data columns that are being printed in the csv-file;
-  4. Bring order to columns by column groups;
-  5. Allow the user to deselect the empty columns;
   6. Sort the columns by whether it is empty or not;
   7. Some initial statistics about the input file when uploaded.
 
@@ -52,7 +56,10 @@ const csvDelimiter = ";";
 
 let prunedTree;
 let inputFilename;
+
 let nonEmptyCols;
+let nonEmptyColsLen;
+let uniqueCols;
 
 /*#######*/
 /* Views */
@@ -75,20 +82,33 @@ function viewUploadJson() {
       // and show the checkboxes
       prunedTree = treeBuild(jsonTree);
 
-      { // get non empty columns for filtering later
+      { // get unique and non empty columns for filtering later
         nonEmptyCols = new Set();
+        uniqueCols = new Set();
         for (const node of prunedTree.nodes) {
           for (const [col, val] of node.data.entries()) {
-            if (val !== null) nonEmptyCols.add(col);
+            if (val !== null) {
+              nonEmptyCols.add(col);
+            }
+            uniqueCols.add(col);
           }
         }
       }
 
-      viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols);
+      // change view/interface
+      { 
+        // print column stats
+        const divFileInfo = document.getElementById("divFileInfo");
+        divFileInfo.hidden = false;
+        const tableStatsColumns = document.getElementById("tableStatsColumns");
+        viewWriteStatsTable(tableStatsColumns, uniqueCols, nonEmptyCols);
 
-      // show download button
-      const divDownload = document.getElementById("divDownload");
-      divDownload.hidden = false;
+        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols);
+
+        // show download button
+        const divDownload = document.getElementById("divDownload");
+        divDownload.hidden = false;
+      }
     }
   }, false);
 
@@ -225,6 +245,30 @@ function viewSetAllCheckboxes() {
   for (const checkbox of allCheckBoxes) {
     checkbox.checked = newState;
   }
+}
+
+function viewWriteStatsTable(table, uniqueCols, nonEmptyCols, clearExisting=true) {
+
+  function addRowToTable(table, col1, col2) {
+    const totalColsRow = document.createElement("tr");
+    const totalColsCellLabel = document.createElement("td");
+    const totalColsCellValue = document.createElement("td");
+    totalColsCellLabel.appendChild(document.createTextNode(col1));
+    totalColsCellValue.appendChild(document.createTextNode(col2));
+    totalColsRow.appendChild(totalColsCellLabel);
+    totalColsRow.appendChild(totalColsCellValue);
+    table.appendChild(totalColsRow);
+  }
+
+  if (clearExisting) {
+    while (table.childElementCount > 0) {
+      table.removeChild(table.lastElementChild);
+    }
+  }
+  
+  addRowToTable(tableStatsColumns, "Non-empty columns", nonEmptyCols.size);
+  addRowToTable(tableStatsColumns, "Empty columns", uniqueCols.size - nonEmptyCols.size);
+  addRowToTable(tableStatsColumns, "Total number of columns", uniqueCols.size);
 }
 
 
@@ -493,12 +537,12 @@ function addNode(tree, parentNode=null) {
   h2 {
     color: rgb(9, 29, 35);
     font-size: 16pt;
-    margin-bottom: 24pt;
-    margin-top: 24pt;
+    margin: 0pt 0pt 24pt 0pt;
   }
   
   h3 {
     font-size: 14pt;
+    margin: 0pt 0pt 12pt 0pt;
   }
 
   h4 {
@@ -534,6 +578,10 @@ function addNode(tree, parentNode=null) {
     margin: 0pt;
   }
 
+  td {
+    padding-right: 12pt;
+  }
+
   /* Classes */
   .btnSecondary {
     background-color: rgb(189, 188, 188);
@@ -548,6 +596,10 @@ function addNode(tree, parentNode=null) {
 
   .txtLight {
     color: rgb(135, 135, 135);
+  }
+
+  .divContent {
+    margin-bottom: 24pt;
   }
 
   /* Ids */
