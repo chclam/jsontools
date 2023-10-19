@@ -10,6 +10,8 @@ Author: Chris Lam (c.lam@cbs.nl)
       <h1>CBS JSON to CSV Converter</h1>
       <div class="divContent">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
+        <br>
+        <input id="btnUploadConversionSheet" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
       </div>
       <div id="divErrorMsg" hidden></div>
       <h2 id="h2FileName"></h2>
@@ -61,10 +63,55 @@ let inputFilename;
 let nonEmptyCols;
 let nonEmptyColsLen;
 let uniqueCols;
+let colRename = null; 
 
 /*#######*/
 /* Views */
 /*#######*/
+
+function viewUploadCsv() {
+  const [file] = document.getElementById("btnUploadConversionSheet").files;
+
+  if (file === undefined) return;
+
+  const reader = new FileReader();
+  reader.readAsText(file);
+
+  reader.addEventListener("load", () => {
+    colRename = parseCsvToColRename(reader.result);
+  });
+}
+
+function parseCsvToColRename(csvRaw) {
+  /* Returns a mapping that maps the first column into the second column of a given csv. */
+  const rowDelim = /\r?\n/; // regex for line break
+  const colDelim = ";"
+
+  const rows = csvRaw.split(rowDelim);
+
+  const ret = new Map();
+  for (const row of rows) {
+    
+    if (row.length === 0) continue;
+
+    const rowItems = row.split(colDelim);
+
+    if (rowItems.length !== 2) {
+      console.log("Row found with more or fewer than two columns. Skipping...");
+    } else {
+      for (let colIdx=0; colIdx<2; colIdx++) {
+        // get rid of the double quotes
+        const val = rowItems[colIdx];
+        if ((val.startsWith("\"") && val.endsWith("\"")) || (val.startsWith("\'") && val.endsWith("\'"))) {
+          rowItems[colIdx] = val.slice(1, val.length-1);
+        }
+      }
+      // by default, set first column as key and second column as value of the mapping
+      ret.set(rowItems[0], rowItems[1]);
+    }
+  }
+  return ret;
+}
 
 function viewUploadJson() {
   const [file] = document.getElementById("btnUpload").files;
@@ -104,7 +151,7 @@ function viewUploadJson() {
         const tableStatsColumns = document.getElementById("tableStatsColumns");
         viewWriteStatsTable(tableStatsColumns, uniqueCols, nonEmptyCols);
 
-        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols);
+        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRename);
 
         // show download button
         const divDownload = document.getElementById("divDownload");
@@ -118,7 +165,7 @@ function viewUploadJson() {
   }
 }
 
-function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
+function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting=true) {
   const checkAllByDefault = true;
 
   // We assigned a name to each node in the tree.
@@ -170,27 +217,44 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, clearExisting=true) {
     checkboxColLabel.appendChild(labelTriangle);
     checkboxColLabel.appendChild(document.createElement("br"));
 
-    const nodeCols = document.createElement("div");
-    const nodeColsNonEmpty = document.createElement("ul");
-    const nodeColsEmpty = document.createElement("ul");
-    nodeCols.appendChild(nodeColsNonEmpty);
-    nodeCols.appendChild(nodeColsEmpty);
+    const nodeCols = document.createElement("table");
+    nodeCols.classList.add("tableCol");
     nodeCols.hidden = true;
-    
+
+    const nodeColsEmpty = [];
+    const nodeColsNonEmpty = [];
     // Add a list of column names under each node name
     for (const colName of uniqueNodeNames.get(checkboxVal)) {
-      const col = document.createElement("li");
-      col.innerText = colName;
+      const col = document.createElement("tr");
+
+      // left column shows the replaced name from colRename 
+      // or just the original column name from JSON-file.
+      // right column is the original name if the name is replaced 
+      // and empty if there is no replacement.
+      const colOld = document.createElement("td");
+      const colNew = document.createElement("td");
+      if (colRename.has(colName)) {
+        colOld.appendChild(document.createTextNode(`\u25C1 ${colName}`));
+        colOld.classList.add("txtLight");
+        colNew.appendChild(document.createTextNode(colRename.get(colName)));
+      } else {
+        colNew.appendChild(document.createTextNode(colName));
+      }
+      col.appendChild(colNew);
+      col.appendChild(colOld);
 
       if (nonEmptyCols.has(colName)) {
-        nodeColsNonEmpty.appendChild(col);
+        nodeColsNonEmpty.push(col);
       } else {
         // layout of the column names when empty
-        col.innerText += " (empty)";
-        col.classList.add("txtLight");
-        nodeColsEmpty.appendChild(col);
+        colNew.innerText += " (empty)";
+        colNew.classList.add("txtLight");
+        nodeColsEmpty.push(col);
       }
     }
+
+    for (const col of nodeColsNonEmpty) nodeCols.appendChild(col);
+    for (const col of nodeColsEmpty) nodeCols.appendChild(col);
 
     // behavior for showing columns under each item and
     // changing the label triangle
@@ -626,6 +690,10 @@ function addNode(tree, parentNode=null) {
 
   .divContent {
     margin-bottom: 24pt;
+  }
+
+  .tableCol {
+    margin-left: 24pt;
   }
 
   /* Ids */
