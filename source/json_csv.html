@@ -57,12 +57,9 @@ maybe:
 
 const csvDelimiter = ";";
 
-let prunedTree;
-let inputFilename;
-
-let nonEmptyCols;
-let nonEmptyColsLen;
-let uniqueCols;
+let prunedTree = null;
+let inputFilename = null;
+let nonEmptyCols = null;
 let colRenameMap = null; 
 
 /*#######*/
@@ -123,8 +120,8 @@ function viewUploadJson() {
 
   const reader = new FileReader();
   reader.addEventListener("load", () => {
-    // todo: reset download button?
     const jsonTree = parseJson(reader);
+    const uniqueCols = new Set();
 
     if (jsonTree !== null) {
       // build a new pruned tree from the obtained json tree
@@ -133,7 +130,6 @@ function viewUploadJson() {
 
       { // get unique and non empty columns for filtering later
         nonEmptyCols = new Set();
-        uniqueCols = new Set();
         for (const node of prunedTree.nodes) {
           for (const [col, val] of node.data.entries()) {
             if (val !== null) {
@@ -307,7 +303,6 @@ function viewGenerateCsv() {
   const selectedCols = [];
   {
     const allCheckBoxes = document.querySelectorAll(".checkboxCol");
-    // todo: checked attribute is not removed / added by clicking.
     // manually add an eventlistener
     for (const checkbox of allCheckBoxes) {
       if (checkbox.checked) {
