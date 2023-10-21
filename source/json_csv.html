@@ -10,7 +10,6 @@ Author: Chris Lam (c.lam@cbs.nl)
       <h1>CBS JSON to CSV Converter</h1>
       <div class="divContent">
         <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
-        <br>
         <input id="btnUploadConversionSheet" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
       </div>
       <div id="divErrorMsg" hidden></div>
@@ -80,6 +79,7 @@ function viewUploadCsv() {
 
   reader.addEventListener("load", () => {
     colRenameMap = parseCsvToColRename(reader.result);
+    viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
   });
 }
 
@@ -223,17 +223,18 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting
     for (const colName of uniqueNodeNames.get(checkboxVal)) {
       const col = document.createElement("tr");
 
-      // left column shows the replaced name from colRename 
+      // left column shows the replaced name from colRenameMap
       // or just the original column name from JSON-file.
       // right column is the original name if the name is replaced 
       // and empty if there is no replacement.
       const colOld = document.createElement("td");
       const colNew = document.createElement("td");
-      if (colRename.has(colName)) {
+
+      if (colRenameMap !== null && colRenameMap.has(colName)) {
         const strikeColOld = document.createElement("s");
         strikeColOld.appendChild(document.createTextNode(colName));
         colOld.appendChild(strikeColOld);
-        colNew.appendChild(document.createTextNode(`\u203A ${colRename.get(colName)}`));
+        colNew.appendChild(document.createTextNode(`\u203A ${colRenameMap.get(colName)}`));
       } else {
         colOld.appendChild(document.createTextNode(colName));
       }
@@ -522,10 +523,9 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
   }
 
   // write header row and replace columns if in colRenameMap
-  {
+  if (colRenameMap !== null) {
     const headerRow = [];
     for (const col of colMapping.keys()) {
-      console.log(colRenameMap);
       if (colRenameMap.has(col)) {
         headerRow.push(colRenameMap.get(col));
       } else {
