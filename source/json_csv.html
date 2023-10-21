@@ -44,6 +44,7 @@ done:
   3. Allow the user to select data columns that are being printed in the csv-file;
   4. Bring order to columns by column groups (solved by having a more sensible default column order)
   5. Allow the user to deselect the empty columns;
+  * change csv delimiter for file upload
 
 todo: 
   2. Allow the user to rename data columns in the csv-file (column aliases);
@@ -63,7 +64,7 @@ let inputFilename;
 let nonEmptyCols;
 let nonEmptyColsLen;
 let uniqueCols;
-let colRename = null; 
+let colRenameMap = null; 
 
 /*#######*/
 /* Views */
@@ -78,7 +79,7 @@ function viewUploadCsv() {
   reader.readAsText(file);
 
   reader.addEventListener("load", () => {
-    colRename = parseCsvToColRename(reader.result);
+    colRenameMap = parseCsvToColRename(reader.result);
   });
 }
 
@@ -151,7 +152,7 @@ function viewUploadJson() {
         const tableStatsColumns = document.getElementById("tableStatsColumns");
         viewWriteStatsTable(tableStatsColumns, uniqueCols, nonEmptyCols);
 
-        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRename);
+        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
 
         // show download button
         const divDownload = document.getElementById("divDownload");
@@ -200,12 +201,7 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting
     checkboxColInput.addEventListener("change", function() {
       const checkboxSelectAll = document.getElementById("checkboxSelectAll");
       const allSelected = viewAllCheckboxSelected();
-
-      if (allSelected) {
-        checkboxSelectAll.checked = true;
-      } else {
-        checkboxSelectAll.checked = false;
-      }
+      checkboxSelectAll.checked = allSelected;
     });
 
     // add checkbox labels
@@ -234,21 +230,22 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting
       const colOld = document.createElement("td");
       const colNew = document.createElement("td");
       if (colRename.has(colName)) {
-        colOld.appendChild(document.createTextNode(`\u25C1 ${colName}`));
-        colOld.classList.add("txtLight");
-        colNew.appendChild(document.createTextNode(colRename.get(colName)));
+        const strikeColOld = document.createElement("s");
+        strikeColOld.appendChild(document.createTextNode(colName));
+        colOld.appendChild(strikeColOld);
+        colNew.appendChild(document.createTextNode(`\u203A ${colRename.get(colName)}`));
       } else {
-        colNew.appendChild(document.createTextNode(colName));
+        colOld.appendChild(document.createTextNode(colName));
       }
-      col.appendChild(colNew);
       col.appendChild(colOld);
+      col.appendChild(colNew);
 
       if (nonEmptyCols.has(colName)) {
         nodeColsNonEmpty.push(col);
       } else {
         // layout of the column names when empty
-        colNew.innerText += " (empty)";
-        colNew.classList.add("txtLight");
+        colOld.innerText += " (empty)";
+        colOld.classList.add("txtLight");
         nodeColsEmpty.push(col);
       }
     }
@@ -325,7 +322,7 @@ function viewGenerateCsv() {
   } else {
     divErrorMsg.hidden = true;
 
-    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols);
+    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, colRenameMap);
     saveCsvBlob(csvLines, inputFilename);
   }
 }
@@ -492,11 +489,13 @@ function treeBuild(jsonTree) {
   return tree;
 }
 
-function jsonToTabular(tree, selectedNodes, nonEmptyCols) {
+function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
   /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
   inner node in a mapping (nodeRowCache). */
+
+  const ret = [];
 
   const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
 
@@ -522,9 +521,19 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols) {
     }
   }
 
-  const ret = [];
-  const headerRow = Array.from(colMapping.keys()).join(csvDelimiter) + "\n";
-  ret.push(headerRow);
+  // write header row and replace columns if in colRenameMap
+  {
+    const headerRow = [];
+    for (const col of colMapping.keys()) {
+      console.log(colRenameMap);
+      if (colRenameMap.has(col)) {
+        headerRow.push(colRenameMap.get(col));
+      } else {
+        headerRow.push(col);
+      }
+    }
+    ret.push(headerRow.join(csvDelimiter) + "\n");
+  }
 
   const stack = [tree.root];
   const nodeRowCache = new WeakMap();
