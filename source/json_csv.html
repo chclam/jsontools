@@ -137,6 +137,7 @@ function viewUploadCsv() {
 
   reader.addEventListener("load", () => {
     colRenameMap = parseCsvToColRename(reader.result);
+    console.log(colRenameMap);
     if (prunedTree !== null) {
       viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
     }
@@ -615,8 +616,8 @@ function parseCsvToColRename(csvRaw, skipHeader=true) {
       let rowCol2 = rowStr.slice(splitIdxLi[0]+1, rowCol2IdxEnd);
 
       // trim double quotes
-      if (rowCol1.startsWith("\"") && rowCol1.endsWith("\"")) rowCol1 = rowCol1.slice(1, rowCol2.length-1);
-      if (rowCol2.startsWith("\"") && rowCol2.endsWith("\"")) rowCol2 = rowCol2.slice(1, rowCol2.length-1);
+      if (rowCol1.startsWith('\"') && rowCol1.endsWith('\"')) rowCol1 = rowCol1.slice(1, rowCol1.length-1);
+      if (rowCol2.startsWith('\"') && rowCol2.endsWith('\"')) rowCol2 = rowCol2.slice(1, rowCol2.length-1);
 
       ret.set(rowCol1, rowCol2); // by default, set first column as key and second column as value of the mapping
     }
