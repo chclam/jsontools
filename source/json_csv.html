@@ -66,85 +66,6 @@ let colRenameMap = null;
 /* Views */
 /*#######*/
 
-function viewUploadCsv() {
-  const [file] = document.getElementById("btnUploadConversionSheet").files;
-
-  if (file === undefined) return;
-
-  const reader = new FileReader();
-  reader.readAsText(file);
-
-  reader.addEventListener("load", () => {
-    colRenameMap = parseCsvToColRename(reader.result);
-    if (prunedTree !== null) {
-      viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
-    }
-  });
-}
-
-function parseCsvToColRename(csvRaw, skipHeader=true) {
-  /* Returns a mapping that maps the first column into the second column of a given csv. */
-  const rowDelim = /\r?\n/; // regex for line break
-  const colDelim = ";"
-
-  const ret = new Map();
-
-  const rows = csvRaw.split(rowDelim);
-
-  for (const [rowIdx, rowStr] of rows.entries()) {
-
-    if (skipHeader && rowIdx === 0) continue;
-    if (rowStr.length === 0) continue;
-
-    // for each row: split column values while escaping delimiters in double quotes.
-    // would love to use the str.split() function, but relying only on regex
-    // is kind of undoable.
-    const splitIdxLi = [];
-    {
-      let quoteOpen = false; // quoteOpen === true if it has passed an uneven number of double quote chars.
-      for (let i=0; i < rowStr.length; i++) {
-        if (rowStr[i] === '\"') {
-          quoteOpen = !quoteOpen;
-        }
-        else if (rowStr[i] ===  '\\') {
-          i++; // skip character after backslash
-        }
-        else if (rowStr[i] === '\'') {
-          console.log("Single quotes detected in CSV file. Only double quotes are escaped...");
-        }
-        else if (rowStr[i] === colDelim) {
-          if (!quoteOpen) {
-            splitIdxLi.push(i);
-          }
-        }
-      }
-
-      if (quoteOpen) {
-        console.warning(`Unclosed quote in CSV file in line ${rowIdx}: ${rowStr}`);
-      }
-    }
-
-    // Split rowStr into columns, where col1 = ret.key and col2 = ret.value
-    if (splitIdxLi.length === 0) {
-      console.log("Row found with fewer than two columns. Skipping row...");
-    } else {
-      if (splitIdxLi.length > 1) console.log("Row found with more than two columns. Skipping columns other than col1 and col2.");
-
-      const rowCol2IdxEnd = (splitIdxLi === 1) ? rowStr.length - 1 : splitIdxLi[1];  
-
-      let rowCol1 = rowStr.slice(0, splitIdxLi[0]);
-      let rowCol2 = rowStr.slice(splitIdxLi[0]+1, rowCol2IdxEnd);
-
-      // trim double quotes
-      if (rowCol1.startsWith("\"") && rowCol1.endsWith("\"")) rowCol1 = rowCol1.slice(1, rowCol2.length-1);
-      if (rowCol2.startsWith("\"") && rowCol2.endsWith("\"")) rowCol2 = rowCol2.slice(1, rowCol2.length-1);
-
-      ret.set(rowCol1, rowCol2); // by default, set first column as key and second column as value of the mapping
-    }
-  }
-  return ret;
-}
-
 function viewUploadJson() {
   const [file] = document.getElementById("btnUpload").files;
 
@@ -195,6 +116,22 @@ function viewUploadJson() {
   if (file) {
     reader.readAsText(file);
   }
+}
+
+function viewUploadCsv() {
+  const [file] = document.getElementById("btnUploadConversionSheet").files;
+
+  if (file === undefined) return;
+
+  const reader = new FileReader();
+  reader.readAsText(file);
+
+  reader.addEventListener("load", () => {
+    colRenameMap = parseCsvToColRename(reader.result);
+    if (prunedTree !== null) {
+      viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
+    }
+  });
 }
 
 function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting=true) {
@@ -610,6 +547,69 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
       for (const childNode of treeNode.children) {
         stack.push(childNode);
       }
+    }
+  }
+  return ret;
+}
+
+function parseCsvToColRename(csvRaw, skipHeader=true) {
+  /* Returns a mapping that maps the first column into the second column of a given csv. */
+  const rowDelim = /\r?\n/; // regex for line break
+  const colDelim = ";"
+
+  const ret = new Map();
+
+  const rows = csvRaw.split(rowDelim);
+
+  for (const [rowIdx, rowStr] of rows.entries()) {
+
+    if (skipHeader && rowIdx === 0) continue;
+    if (rowStr.length === 0) continue;
+
+    // for each row: split column values while escaping delimiters in double quotes.
+    // would love to use the str.split() function, but relying only on regex
+    // is kind of undoable.
+    const splitIdxLi = [];
+    {
+      let quoteOpen = false; // quoteOpen === true if it has passed an uneven number of double quote chars.
+      for (let i=0; i < rowStr.length; i++) {
+        if (rowStr[i] === '\"') {
+          quoteOpen = !quoteOpen;
+        }
+        else if (rowStr[i] ===  '\\') {
+          i++; // skip character after backslash
+        }
+        else if (rowStr[i] === '\'') {
+          console.log("Single quotes detected in CSV file. Only double quotes are escaped...");
+        }
+        else if (rowStr[i] === colDelim) {
+          if (!quoteOpen) {
+            splitIdxLi.push(i);
+          }
+        }
+      }
+
+      if (quoteOpen) {
+        console.warning(`Unclosed quote in CSV file in line ${rowIdx}: ${rowStr}`);
+      }
+    }
+
+    // Split rowStr into columns, where col1 = ret.key and col2 = ret.value
+    if (splitIdxLi.length === 0) {
+      console.log("Row found with fewer than two columns. Skipping row...");
+    } else {
+      if (splitIdxLi.length > 1) console.log("Row found with more than two columns. Skipping columns other than col1 and col2.");
+
+      const rowCol2IdxEnd = (splitIdxLi === 1) ? rowStr.length - 1 : splitIdxLi[1];  
+
+      let rowCol1 = rowStr.slice(0, splitIdxLi[0]);
+      let rowCol2 = rowStr.slice(splitIdxLi[0]+1, rowCol2IdxEnd);
+
+      // trim double quotes
+      if (rowCol1.startsWith("\"") && rowCol1.endsWith("\"")) rowCol1 = rowCol1.slice(1, rowCol2.length-1);
+      if (rowCol2.startsWith("\"") && rowCol2.endsWith("\"")) rowCol2 = rowCol2.slice(1, rowCol2.length-1);
+
+      ret.set(rowCol1, rowCol2); // by default, set first column as key and second column as value of the mapping
     }
   }
   return ret;
