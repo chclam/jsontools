@@ -48,20 +48,20 @@ Author: Chris Lam (c.lam@cbs.nl)
 done: 
   * Handle empty json files. 
   * The columns are the other way around;
-  1. Filter out empty columns
-  3. Allow the user to select data columns that are being printed in the csv-file;
-  4. Bring order to columns by column groups (solved by having a more sensible default column order)
-  5. Allow the user to deselect the empty columns;
+  * Filter out empty columns
+  * Allow the user to select data columns that are being printed in the csv-file;
+  * Bring order to columns by column groups (solved by having a more sensible default column order)
+  * Allow the user to deselect the empty columns;
   * change csv delimiter for file upload
+  * Some initial statistics about the input file when uploaded.
+  * Sort the columns by whether it is empty or not;
+  * Allow the user to rename data columns in the csv-file (column aliases);
 
 todo: 
-  2. Allow the user to rename data columns in the csv-file (column aliases);
-  6. Sort the columns by whether it is empty or not;
-  7. Some initial statistics about the input file when uploaded.
+  * allow give option to print the new names in second column
 
 maybe:
   8. Onderscheidsteken: Allow the user to define the delimiter
-  9. Volgorde: Allow the user to define an order in the data columns. OPTIONAL
 */
 
 const csvDelimiter = ";";
@@ -137,7 +137,6 @@ function viewUploadCsv() {
 
   reader.addEventListener("load", () => {
     colRenameMap = parseCsvToColRename(reader.result);
-    console.log(colRenameMap);
     if (prunedTree !== null) {
       viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
     }
@@ -600,7 +599,7 @@ function parseCsvToColRename(csvRaw, skipHeader=true) {
       }
 
       if (quoteOpen) {
-        console.warning(`Unclosed quote in CSV file in line ${rowIdx}: ${rowStr}`);
+        console.log(`Unclosed quote in CSV file in line ${rowIdx}: ${rowStr}`);
       }
     }
 
