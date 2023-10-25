@@ -8,17 +8,26 @@ Author: Chris Lam (c.lam@cbs.nl)
   <body>
     <div id="content">
       <h1>CBS JSON to CSV Converter</h1>
-      <div class="divContent">
-        <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
-        <input id="btnUploadConversionSheet" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
+      <div class="divContentFull">
+        <h3>File Upload</h3>
+        <div class="divContentInline">
+          <h4>Source File (JSON)</h4>
+          <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
+        </div>
+        <div class="divContentInline">
+          <h4>Column Rename (CSV)</h4>
+          <input id="btnUploadConversionSheet" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
+          <br>
+          <small>*columns must be separated by a semicolon (;)<br>and semicolon literals must be in double quotes (").</small>
+        </div>
       </div>
       <div id="divErrorMsg" hidden></div>
       <h2 id="h2FileName"></h2>
-      <div id="divFileInfo" class="divContent" hidden>
+      <div id="divFileInfo" class="divContentFull" hidden>
         <h3>File Information</h3>
         <table id="tableStatsColumns"></table>
       </div>
-      <div id="divConversionOptions" class="divContent" hidden>
+      <div id="divConversionOptions" class="divContentFull" hidden>
         <h3>Column Selection</h3>
         <input id="checkboxSelectAll" type="checkbox" checked onchange="{ viewSetAllCheckboxes(); return false; }">
         <label for="checkboxSelectAll"><b>All Columns</b></label>
@@ -670,7 +679,7 @@ function addNode(tree, parentNode=null) {
 
   h4 {
     font-size: 12pt;
-    margin: 0pt 0pt 12pt 0pt;
+    margin: 0pt 0pt 6pt 0pt;
   }
   
   body {
@@ -685,6 +694,7 @@ function addNode(tree, parentNode=null) {
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
     padding: 8pt 12pt;
+    margin-bottom: 6pt;
   }
 
   button {
@@ -692,6 +702,7 @@ function addNode(tree, parentNode=null) {
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
     margin-right: 12pt;
+    margin-bottom: 6pt;
     padding: 8pt 12pt;
   }
 
@@ -727,8 +738,14 @@ function addNode(tree, parentNode=null) {
     color: rgb(135, 135, 135);
   }
 
-  .divContent {
+  .divContentFull {
     margin-bottom: 24pt;
+  }
+  
+  .divContentInline {
+    display: inline-block;
+    margin-right: 36pt;
+    vertical-align: top;
   }
 
   .tableCol {
