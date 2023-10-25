@@ -12,13 +12,16 @@ Author: Chris Lam (c.lam@cbs.nl)
         <h3>File Upload</h3>
         <div class="divContentInline">
           <h4>Source File (JSON)</h4>
-          <input id="btnUpload" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
+          <input id="btnUpload" class="itemSpace" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
         </div>
         <div class="divContentInline">
           <h4>Column Rename (CSV)</h4>
-          <input id="btnUploadConversionSheet" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
-          <br>
-          <small>*columns must be separated by a semicolon (;)<br>and semicolon literals must be in double quotes (").</small>
+          <input id="btnUploadConversionSheet" class="itemSpace" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
+          <small class="itemSpace">
+            *columns must be separated by a semicolon (;)
+            <br>
+            and semicolon literals must be in double quotes (").
+          </small>
         </div>
       </div>
       <div id="divErrorMsg" hidden></div>
@@ -37,7 +40,7 @@ Author: Chris Lam (c.lam@cbs.nl)
       <div id="divDownload" hidden>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
         <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
-        <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV</label>
+        <label for="checkboxRemoveEmptyCols"><small>Ignore empty columns in CSV</small></label>
       </div>
     </div>
   </body>
@@ -136,8 +139,12 @@ function viewUploadCsv() {
   reader.readAsText(file);
 
   reader.addEventListener("load", () => {
-    colRenameMap = parseCsvToColRename(reader.result);
-    if (prunedTree !== null) {
+    const csvRaw =  reader.result
+
+    if (csvRaw.length === 0) return;
+
+    colRenameMap = parseCsvToColRename(csvRaw);
+    if (prunedTree !== null && colRenameMap !== null) {
       viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
     }
   });
@@ -499,10 +506,10 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
   }
 
   // write header row and replace columns if in colRenameMap
-  if (colRenameMap !== null) {
+  {
     const headerRow = [];
     for (const col of colMapping.keys()) {
-      if (colRenameMap.has(col)) {
+      if (colRenameMap !== null && colRenameMap.has(col)) {
         headerRow.push(colRenameMap.get(col));
       } else {
         headerRow.push(col);
@@ -569,6 +576,8 @@ function parseCsvToColRename(csvRaw, skipHeader=true) {
   const ret = new Map();
 
   const rows = csvRaw.split(rowDelim);
+
+  if (csvRaw.length === 0) return null;
 
   for (const [rowIdx, rowStr] of rows.entries()) {
 
@@ -681,6 +690,7 @@ function addNode(tree, parentNode=null) {
     font-size: 12pt;
     margin: 0pt 0pt 6pt 0pt;
   }
+
   
   body {
     font-family: helvetica, arial, sans-serif;
@@ -694,7 +704,6 @@ function addNode(tree, parentNode=null) {
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
     padding: 8pt 12pt;
-    margin-bottom: 6pt;
   }
 
   button {
@@ -702,7 +711,6 @@ function addNode(tree, parentNode=null) {
     background-color: rgb(5, 128, 161);
     color: rgb(255, 255, 255);
     margin-right: 12pt;
-    margin-bottom: 6pt;
     padding: 8pt 12pt;
   }
 
@@ -750,6 +758,11 @@ function addNode(tree, parentNode=null) {
 
   .tableCol {
     margin-left: 24pt;
+  }
+
+  .itemSpace {
+    margin-bottom: 6pt;
+    display: block;
   }
 
   /* Ids */
