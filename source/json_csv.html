@@ -43,8 +43,8 @@ Author: Chris Lam (c.lam@cbs.nl)
             <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
             <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV.</label>
             <br>
-            <input type="checkbox" id="checkboxRenameUnderHeader" name="checkboxRenameUnderHeader" value="checkboxRenameUnderHeader" checked>
-            <label for="checkboxRenameUnderHeader">Output the renamed columns under the header row.</label>
+            <input type="checkbox" id="checkboxRenameUnderHeader" name="checkboxRenameUnderHeader" value="checkboxRenameUnderHeader" checked hidden>
+            <label for="checkboxRenameUnderHeader" id="checkboxRenameUnderHeaderLabel" hidden>Output the renamed columns under the header row.</label>
         </div>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
       </div>
@@ -89,11 +89,9 @@ function viewUploadJson() {
 
   if (file === undefined) return;
 
-  inputFilename = file.name;
-
   const reader = new FileReader();
   reader.addEventListener("load", () => {
-    const jsonTree = parseJson(reader);
+    const jsonTree = parseJson(reader, file.name);
     const uniqueCols = new Set();
 
     if (jsonTree !== null) {
@@ -152,6 +150,18 @@ function viewUploadCsv() {
     colRenameMap = parseCsvToColRename(csvRaw);
     if (prunedTree !== null && colRenameMap !== null) {
       viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
+    }
+
+    // show or hide checkbox 
+    const checkboxRenameUnderHeader = document.getElementById("checkboxRenameUnderHeader");
+    const checkboxRenameUnderHeaderLabel = document.getElementById("checkboxRenameUnderHeaderLabel");
+
+    if (colRenameMap === null) {
+      checkboxRenameUnderHeader.hidden = true;
+      checkboxRenameUnderHeaderLabel.hidden = true;
+    } else {
+      checkboxRenameUnderHeader.hidden = false;
+      checkboxRenameUnderHeaderLabel.hidden = false;
     }
   });
 }
@@ -266,6 +276,10 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting
   // show/unhide the div for the checkboxes
   const divConvOpts = document.getElementById("divConversionOptions");
   divConvOpts.hidden = false;
+
+  // make sure "All Columns" checkbox is checked
+  const checkboxSelectAll = document.getElementById("checkboxSelectAll");
+  checkboxSelectAll.checked = true;
 }
 
 function viewSetAllCheckboxes() {
@@ -352,7 +366,7 @@ function viewWriteStatsTable(table, uniqueCols, nonEmptyCols, clearExisting=true
 /* Logic */
 /*#######*/
 
-function parseJson(reader) {
+function parseJson(reader, filename) {
   const h2FileName  = document.getElementById("h2FileName");
   const divErrorMsg = document.getElementById("divErrorMsg");
   let ret = null;
@@ -365,10 +379,11 @@ function parseJson(reader) {
   }
 
   if (ret === null) {
-    divErrorMsg.innerHTML = `Empty JSON-file! No CSV-file created for: <br> ${inputFilename}`;
+    divErrorMsg.innerHTML = `Empty JSON-file! No CSV-file created for: <br> ${filename}`;
     divErrorMsg.hidden = false;
   } else {
-    h2FileName.innerText = `File: ${inputFilename}`;
+    inputFilename = filename;
+    h2FileName.innerText = `File: ${filename}`;
     divErrorMsg.innerText = "";
     divErrorMsg.hidden = true;
   }
@@ -529,8 +544,8 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenam
         }
       }
 
-      ret.push(headerRow.join(csvDelimiter) + "\n");
       ret.push(headerRowNewNames.join(csvDelimiter) + "\n");
+      ret.push(headerRow.join(csvDelimiter) + "\n");
 
     } else {
       for (let colIdx=0; colIdx<headerRow.length; colIdx++) {
