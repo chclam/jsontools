@@ -37,10 +37,16 @@ Author: Chris Lam (c.lam@cbs.nl)
         <hr>
         <ul id="ulColumns"></ul>
       </div>
-      <div id="divDownload" hidden>
+      <div id="divDownload" class="divContentFull" hidden>
+        <h3>File Download</h3>
+          <div class="itemSpace">
+            <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
+            <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV.</label>
+            <br>
+            <input type="checkbox" id="checkboxRenameUnderHeader" name="checkboxRenameUnderHeader" value="checkboxRenameUnderHeader" checked>
+            <label for="checkboxRenameUnderHeader">Output the renamed columns under the header row.</label>
+        </div>
         <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
-        <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
-        <label for="checkboxRemoveEmptyCols"><small>Ignore empty columns in CSV</small></label>
       </div>
     </div>
   </body>
@@ -307,9 +313,11 @@ function viewGenerateCsv() {
     divErrorMsg.hidden = true;
 
     const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
-    const removeEmptyCols = checkboxRemoveEmptyColumns.checked;
+    const checkboxRenameUnderHeader  = document.getElementById("checkboxRenameUnderHeader");
+    const removeEmptyCols   = checkboxRemoveEmptyColumns.checked;
+    const renameUnderHeader = checkboxRenameUnderHeader.checked;
 
-    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols);
+    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols, renameUnderHeader);
     saveCsvBlob(csvLines, inputFilename);
   }
 }
@@ -476,14 +484,13 @@ function treeBuild(jsonTree) {
   return tree;
 }
 
-function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols) {
+function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols=false, renameUnderHeader=false) {
   /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
   inner node in a mapping (nodeRowCache). */
 
   const ret = [];
-
 
   // colMapping is a hash map for each column 
   // to its index in the resulting csv-file.
@@ -507,17 +514,33 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenam
     }
   }
 
-  // write header row and replace columns if in colRenameMap
-  {
-    const headerRow = [];
-    for (const col of colMapping.keys()) {
-      if (colRenameMap !== null && colRenameMap.has(col)) {
-        headerRow.push(colRenameMap.get(col));
-      } else {
-        headerRow.push(col);
-      }
-    }
+  const headerRow = Array.from(colMapping.keys());
+
+  if (colRenameMap === null) {
     ret.push(headerRow.join(csvDelimiter) + "\n");
+  } else {
+    if (renameUnderHeader) {
+      const headerRowNewNames = [...headerRow];
+
+      for (let colIdx=0; colIdx<headerRow.length; colIdx++) {
+        const oldColName = headerRow[colIdx];
+        if (colRenameMap.has(oldColName)) {
+          headerRowNewNames[colIdx] = colRenameMap.get(oldColName);
+        }
+      }
+
+      ret.push(headerRow.join(csvDelimiter) + "\n");
+      ret.push(headerRowNewNames.join(csvDelimiter) + "\n");
+
+    } else {
+      for (let colIdx=0; colIdx<headerRow.length; colIdx++) {
+        const oldColName = headerRow[colIdx];
+        if (colRenameMap.has(oldColName)) {
+          headerRow[colIdx] = colRenameMap.get(oldColName);
+        }
+      }
+      ret.push(headerRow.join(csvDelimiter) + "\n");
+    }
   }
 
   const stack = [tree.root];
