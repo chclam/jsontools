@@ -1,0 +1,830 @@
+<!--
+Author: Chris Lam (c.lam@cbs.nl)
+-->
+<html>
+  <head>
+    <title>CBS JSON to CSV Converter</title>
+  </head>
+  <body>
+    <div id="content">
+      <h1>CBS JSON to CSV Converter</h1>
+      <div class="divContentFull">
+        <h3>File Upload</h3>
+        <div class="divContentInline">
+          <h4>Source File (JSON)</h4>
+          <input id="btnUpload" class="itemSpace" type="file" accept=".json" value="Upload JSON" onchange="viewUploadJson()"/>
+        </div>
+        <div class="divContentInline">
+          <h4>Column Rename (CSV)</h4>
+          <input id="btnUploadConversionSheet" class="itemSpace" type="file" accept=".csv" value="Upload CSV" onchange="viewUploadCsv()"/>
+          <small class="itemSpace">
+            *columns must be separated by a semicolon (;)
+            <br>
+            and semicolon literals must be in double quotes (").
+          </small>
+        </div>
+      </div>
+      <div id="divErrorMsg" hidden></div>
+      <h2 id="h2FileName"></h2>
+      <div id="divFileInfo" class="divContentFull" hidden>
+        <h3>File Information</h3>
+        <table id="tableStatsColumns"></table>
+      </div>
+      <div id="divConversionOptions" class="divContentFull" hidden>
+        <h3>Column Selection</h3>
+        <input id="checkboxSelectAll" type="checkbox" checked onchange="{ viewSetAllCheckboxes(); return false; }">
+        <label for="checkboxSelectAll"><b>All Columns</b></label>
+        <hr>
+        <ul id="ulColumns"></ul>
+      </div>
+      <div id="divDownload" class="divContentFull" hidden>
+        <h3>File Download</h3>
+          <div class="itemSpace">
+            <input type="checkbox" id="checkboxRemoveEmptyCols" name="checkboxRemoveEmptyCols" value="checkboxRemoveEmptyCols" checked>
+            <label for="checkboxRemoveEmptyCols">Ignore empty columns in CSV.</label>
+            <br>
+            <input type="checkbox" id="checkboxRenameUnderHeader" name="checkboxRenameUnderHeader" value="checkboxRenameUnderHeader" checked hidden>
+            <label for="checkboxRenameUnderHeader" id="checkboxRenameUnderHeaderLabel" hidden>Output the original column names under the renamed header row.</label>
+        </div>
+        <button id="btnDownload" onclick="{ viewGenerateCsv(); return false; }">Download CSV</button>
+      </div>
+    </div>
+  </body>
+</html>
+
+<script>
+/*
+done: 
+  * Handle empty json files. 
+  * The columns are the other way around;
+  * Filter out empty columns
+  * Allow the user to select data columns that are being printed in the csv-file;
+  * Bring order to columns by column groups (solved by having a more sensible default column order)
+  * Allow the user to deselect the empty columns;
+  * change csv delimiter for file upload
+  * Some initial statistics about the input file when uploaded.
+  * Sort the columns by whether it is empty or not;
+  * Allow the user to rename data columns in the csv-file (column aliases);
+
+todo: 
+  * allow give option to print the new names in second column
+
+maybe:
+  8. Onderscheidsteken: Allow the user to define the delimiter
+*/
+
+const csvDelimiter = ";";
+
+let prunedTree = null;
+let inputFilename = null;
+let nonEmptyCols = null;
+let colRenameMap = null; 
+
+/*#######*/
+/* Views */
+/*#######*/
+
+function viewUploadJson() {
+  const [file] = document.getElementById("btnUpload").files;
+
+  if (file === undefined) return;
+
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    const jsonTree = parseJson(reader, file.name);
+    const uniqueCols = new Set();
+
+    if (jsonTree !== null) {
+      // build a new pruned tree from the obtained json tree
+      // and show the checkboxes
+      prunedTree = treeBuild(jsonTree);
+
+      // get unique and non empty columns for filtering later
+      { 
+        nonEmptyCols = new Set();
+        for (const node of prunedTree.nodes) {
+          for (const [col, val] of node.data.entries()) {
+            if (val !== null) {
+              nonEmptyCols.add(col);
+            }
+            uniqueCols.add(col);
+          }
+        }
+      }
+
+      // change view/interface
+      { 
+        // print column stats
+        const divFileInfo = document.getElementById("divFileInfo");
+        divFileInfo.hidden = false;
+        const tableStatsColumns = document.getElementById("tableStatsColumns");
+        viewWriteStatsTable(tableStatsColumns, uniqueCols, nonEmptyCols);
+
+        viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
+
+        // show download button
+        const divDownload = document.getElementById("divDownload");
+        divDownload.hidden = false;
+      }
+    }
+  }, false);
+
+  if (file) {
+    reader.readAsText(file);
+  }
+}
+
+function viewUploadCsv() {
+  const [file] = document.getElementById("btnUploadConversionSheet").files;
+
+  if (file === undefined) return;
+
+  const reader = new FileReader();
+  reader.readAsText(file);
+
+  reader.addEventListener("load", () => {
+    const csvRaw =  reader.result
+
+    if (csvRaw.length === 0) return;
+
+    colRenameMap = parseCsvToColRename(csvRaw);
+    if (prunedTree !== null && colRenameMap !== null) {
+      viewDrawColCheckboxes(prunedTree.nodes, nonEmptyCols, colRenameMap);
+    }
+
+    // show or hide checkbox 
+    const checkboxRenameUnderHeader = document.getElementById("checkboxRenameUnderHeader");
+    const checkboxRenameUnderHeaderLabel = document.getElementById("checkboxRenameUnderHeaderLabel");
+
+    if (colRenameMap === null) {
+      checkboxRenameUnderHeader.hidden = true;
+      checkboxRenameUnderHeaderLabel.hidden = true;
+    } else {
+      checkboxRenameUnderHeader.hidden = false;
+      checkboxRenameUnderHeaderLabel.hidden = false;
+    }
+  });
+}
+
+function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting=true) {
+  const checkAllByDefault = true;
+
+  // We assigned a name to each node in the tree.
+  // We use these names to represent the "column categories".
+  const uniqueNodeNames = new Map();
+  for (const node of treeNodes) {
+    if (node.parent !== null) {
+      // do not add checkbox if it is a root
+      uniqueNodeNames.set(node.name, node.data.keys()); 
+    }
+  }
+
+  const ulColumns = document.getElementById("ulColumns");
+
+  if (clearExisting) ulColumns.innerHTML = "";
+
+  // Add a checkbox for each unique node name.
+  // The user can then select the column categories (node names)
+  // that gets converted into csv.
+  for (const checkboxVal of uniqueNodeNames.keys()) {
+    // add checkboxes themselves
+    const checkboxColInput = document.createElement("input");
+    checkboxColInput.setAttribute("type" , "checkbox");
+    checkboxColInput.setAttribute("class", "CheckboxCol");
+    checkboxColInput.setAttribute("id"   , `CheckboxCol_${checkboxVal}`);
+    checkboxColInput.setAttribute("name" , checkboxVal);
+    checkboxColInput.setAttribute("value", checkboxVal);
+    checkboxColInput.checked = checkAllByDefault;
+
+    // add behavior for the select all checkbox when a checkbox 
+    // in the list is selected.
+    checkboxColInput.addEventListener("change", function() {
+      const checkboxSelectAll = document.getElementById("checkboxSelectAll");
+      const allSelected = viewAllCheckboxSelected();
+      checkboxSelectAll.checked = allSelected;
+    });
+
+    // add checkbox labels
+    const checkboxColLabel = document.createElement("label");
+    const checkboxText = document.createTextNode(` ${checkboxVal} `);
+    const labelTriangle = document.createTextNode("\u23F7");
+    checkboxColLabel.setAttribute("for", checkboxVal);
+    checkboxColLabel.appendChild(checkboxText);
+    checkboxColLabel.appendChild(labelTriangle);
+    checkboxColLabel.appendChild(document.createElement("br"));
+
+    const nodeCols = document.createElement("table");
+    nodeCols.classList.add("tableCol");
+    nodeCols.hidden = true;
+
+    const nodeColsEmpty = [];
+    const nodeColsNonEmpty = [];
+    // Add a list of column names under each node name
+    for (const colName of uniqueNodeNames.get(checkboxVal)) {
+      const col = document.createElement("tr");
+
+      // left column shows the replaced name from colRenameMap
+      // or just the original column name from JSON-file.
+      // right column is the original name if the name is replaced 
+      // and empty if there is no replacement.
+      const colOld = document.createElement("td");
+      const colNew = document.createElement("td");
+
+      if (colRenameMap !== null && colRenameMap.has(colName)) {
+        const strikeColOld = document.createElement("s");
+        strikeColOld.appendChild(document.createTextNode(colName));
+        colOld.appendChild(strikeColOld);
+        colNew.appendChild(document.createTextNode(`\u203A ${colRenameMap.get(colName)}`));
+      } else {
+        colOld.appendChild(document.createTextNode(colName));
+      }
+      col.appendChild(colOld);
+      col.appendChild(colNew);
+
+      if (nonEmptyCols.has(colName)) {
+        nodeColsNonEmpty.push(col);
+      } else {
+        // layout of the column names when empty
+        colOld.innerHTML += " (empty)";
+        colOld.classList.add("txtLight");
+        nodeColsEmpty.push(col);
+      }
+    }
+
+    for (const col of nodeColsNonEmpty) nodeCols.appendChild(col);
+    for (const col of nodeColsEmpty) nodeCols.appendChild(col);
+
+    // behavior for showing columns under each item and
+    // changing the label triangle
+    checkboxColLabel.addEventListener("click", () => {
+      nodeCols.hidden = !nodeCols.hidden;
+      // Set triangle behavior: triangle up when hidden, down when not.
+      if (nodeCols.hidden) {
+        labelTriangle.nodeValue = "\u23F7";
+      } else {
+        labelTriangle.nodeValue = "\u23F6";
+      }
+    });
+
+    const checkboxColLi = document.createElement("li");
+    checkboxColLi.appendChild(checkboxColInput);
+    checkboxColLi.appendChild(checkboxColLabel);
+    checkboxColLi.appendChild(nodeCols);
+    ulColumns.appendChild(checkboxColLi);
+  }
+
+  // show/unhide the div for the checkboxes
+  const divConvOpts = document.getElementById("divConversionOptions");
+  divConvOpts.hidden = false;
+
+  // make sure "All Columns" checkbox is checked
+  const checkboxSelectAll = document.getElementById("checkboxSelectAll");
+  checkboxSelectAll.checked = true;
+}
+
+function viewSetAllCheckboxes() {
+  const allCheckBoxes = document.querySelectorAll(".checkBoxCol");
+
+  // newState is true if there is at least one checkbox unchecked.
+  // i.e. the behavior is to set all checkboxes to checked if there is at least one unchecked.
+  // if all is already checked, then uncheck all (set to false).
+  const newState = !viewAllCheckboxSelected();
+
+  for (const checkbox of allCheckBoxes) {
+    checkbox.checked = newState;
+  }
+}
+
+function viewAllCheckboxSelected() {
+  const allCheckBoxes = document.querySelectorAll(".checkboxCol");
+
+  for (const checkbox of allCheckBoxes) {
+    if (!checkbox.checked) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function viewGenerateCsv() {
+  // Get selected checkboxes
+  const selectedCols = [];
+  {
+    const allCheckBoxes = document.querySelectorAll(".checkboxCol");
+    // manually add an eventlistener
+    for (const checkbox of allCheckBoxes) {
+      if (checkbox.checked) {
+        selectedCols.push(checkbox.value);
+      }
+    }
+  }
+
+  if (selectedCols.length === 0) {
+    const divErrorMsg = document.getElementById("divErrorMsg");
+    divErrorMsg.innerText = "No columns selected!";
+    divErrorMsg.hidden = false;
+  } else {
+    divErrorMsg.hidden = true;
+
+    const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
+    const checkboxRenameUnderHeader  = document.getElementById("checkboxRenameUnderHeader");
+    const removeEmptyCols   = checkboxRemoveEmptyColumns.checked;
+    const renameUnderHeader = checkboxRenameUnderHeader.checked;
+
+    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols, renameUnderHeader);
+    saveCsvBlob(csvLines, inputFilename);
+  }
+}
+
+
+function viewWriteStatsTable(table, uniqueCols, nonEmptyCols, clearExisting=true) {
+
+  function addRowToTable(table, col1, col2) {
+    const totalColsRow = document.createElement("tr");
+    const totalColsCellLabel = document.createElement("td");
+    const totalColsCellValue = document.createElement("td");
+    totalColsCellLabel.appendChild(document.createTextNode(col1));
+    totalColsCellValue.appendChild(document.createTextNode(col2));
+    totalColsRow.appendChild(totalColsCellLabel);
+    totalColsRow.appendChild(totalColsCellValue);
+    table.appendChild(totalColsRow);
+  }
+
+  if (clearExisting) {
+    while (table.childElementCount > 0) {
+      table.removeChild(table.lastElementChild);
+    }
+  }
+  
+  addRowToTable(tableStatsColumns, "Non-empty columns", nonEmptyCols.size);
+  addRowToTable(tableStatsColumns, "Empty columns", uniqueCols.size - nonEmptyCols.size);
+  addRowToTable(tableStatsColumns, "Total columns", uniqueCols.size);
+}
+
+
+/*#######*/
+/* Logic */
+/*#######*/
+
+function parseJson(reader, filename) {
+  const h2FileName  = document.getElementById("h2FileName");
+  const divErrorMsg = document.getElementById("divErrorMsg");
+  let ret = null;
+
+  try {
+    ret = JSON.parse(reader.result); 
+  } catch (e) {
+    divErrorMsg.innerHTML = `Parse FAILED: ${e}.<br> Please upload a valid JSON file.`;
+    divErrorMsg.hidden = false;
+  }
+
+  if (ret === null) {
+    divErrorMsg.innerHTML = `Empty JSON-file! No CSV-file created for: <br> ${filename}`;
+    divErrorMsg.hidden = false;
+  } else {
+    inputFilename = filename;
+    h2FileName.innerText = `File: ${filename}`;
+    divErrorMsg.innerText = "";
+    divErrorMsg.hidden = true;
+  }
+  return ret;
+}
+
+
+function saveCsvBlob(csvLines, inputFilename) {
+  const a = document.createElement("a");
+  const outputFilename = inputFilename.replace(".json", ".csv");
+
+  a.href = window.URL.createObjectURL(new Blob(csvLines, {type: "text/csv"}));
+  a.download = outputFilename;
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+
+function treeBuild(jsonTree) {
+  /* We build our own tree from the source json-tree.
+  The new tree is a simplified version of the source json-tree by
+  "unnesting" nested objects in the source json-tree. 
+  Suppose that object b is a variable under the name a in some object
+  Then we add all variables of object b to object a and prefix the variables with the name of object b.
+  E.g. {a: {b: 1}, c: 2} becomes {a_b:1, c: 2}.
+      However, when dealing with objects in arrays, we do make add new nodes for each Object in an array.
+  This is because these correspond to multiple entries belonging to the parent node.
+  e.g. {a: [{b: 1}, {b: 2}], c: 2} becomes {c: 2} with children {a_b: 1} and {a_b: 2}.
+  */
+  const tree = new Tree();
+  const root = addNode(tree);
+
+  const treeNodeMap = new WeakMap();
+  treeNodeMap.set(jsonTree, root);
+
+  // jsonNodeNameMap maps the Node-object to the node name.
+  // We use it to keep track of the parent prefixes from the original tree for the node names in the new tree.
+  // Example: if we have {A: {B: 1, C: 2}, B: 3} in the old tree and we want to have {A_B: 1, A_C: 2, B: 3} in the new tree,
+  // then jsonNodeNameMap keeps track of the "A_" prefix as we build the new tree.
+  const jsonNodeNameMap = new WeakMap();
+  const queue = [jsonTree];
+
+  while (queue.length > 0) {
+    const jsonNode = queue.shift();
+    const treeNode = treeNodeMap.get(jsonNode);
+
+    // Loop through the elements in the json node
+    for (const dataKey in jsonNode) {
+
+      const dataElement = jsonNode[dataKey];
+
+      // case distinction per type
+      if (Array.isArray(dataElement)) {
+        // dataElement is an array
+        for (let nestedKey=0; nestedKey<dataElement.length; nestedKey++) {
+          const nestedElement = dataElement[nestedKey];
+
+          if (Array.isArray(nestedElement)) {
+            // nestedElement is an array 
+
+            // this is an ugly case. Since an array can also 
+            // contain other objects etc., we copy the array into a new object.
+            const newObject = new Object();
+            newObject[nestedKey] = nestedElement;
+
+            const jsonNodeName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey);
+            jsonNodeNameMap.set(newObject, jsonNodeName);
+
+            const newNode = addNode(tree, treeNode);
+            newNode.name = jsonNodeName;
+
+            treeNodeMap.set(newObject, newNode);
+            queue.push(newObject);
+
+          } else if (typeof(nestedElement) === "object") {
+            // nestedElement is an object
+            const newNode = addNode(tree, treeNode);
+            newNode.name = dataKey;
+
+            const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+            jsonNodeNameMap.set(nestedElement, jsonNodeName);
+
+            treeNodeMap.set(nestedElement, newNode);
+            queue.push(nestedElement);
+
+          } else {
+            // nestedElement is a primitive value
+            const colName = (jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey) + "_values";
+
+            const newNode = addNode(tree, treeNode);
+            newNode.name = colName;
+            newNode.data.set(colName, nestedElement)
+          }
+        }
+
+      } else if (typeof(dataElement) === "object" && dataElement !== null) {
+        // dataElement is an object 
+          const jsonNodeName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+          jsonNodeNameMap.set(dataElement, jsonNodeName);
+
+          treeNodeMap.set(dataElement, treeNode);
+          queue.push(dataElement);
+
+      } else {
+        // dataElement is a primitive value
+        const colName = jsonNodeNameMap.has(jsonNode) ? `${jsonNodeNameMap.get(jsonNode)}_${dataKey}` : dataKey;
+        treeNode.data.set(colName, dataElement);
+      }
+    }
+  }
+  return tree;
+}
+
+function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols=false, renameUnderHeader=false) {
+  /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
+  We write a line in the resulting csv-file for each unique path from root to leaf. 
+  Since the paths to the leaves often share inner nodes, we cache the row data for each
+  inner node in a mapping (nodeRowCache). */
+
+  const ret = [];
+
+  // colMapping is a hash map for each column 
+  // to its index in the resulting csv-file.
+  const colMapping = new Map();
+  {
+    // @speed, excessive dereferencing
+    let colIdx = 0;
+    for (const node of tree.nodes) {
+      // root of the tree is always printed in the csv-file.
+      if (node.parent !== null && !selectedNodes.includes(node.name)) continue;
+
+      for (const colName of node.data.keys()) { 
+        // addEmptyColumn is only false if checked=true and col is empty.
+        const addEmptyColumn = (!removeEmptyCols) || nonEmptyCols.has(colName); 
+
+        if (addEmptyColumn && !colMapping.has(colName)) {
+          colMapping.set(colName, colIdx); 
+          colIdx++;
+        }
+      }
+    }
+  }
+
+  const headerRow = Array.from(colMapping.keys());
+
+  if (colRenameMap === null) {
+    ret.push(headerRow.join(csvDelimiter) + "\n");
+  } else {
+    if (renameUnderHeader) {
+      const headerRowNewNames = [...headerRow];
+
+      for (let colIdx=0; colIdx<headerRow.length; colIdx++) {
+        const oldColName = headerRow[colIdx];
+        if (colRenameMap.has(oldColName)) {
+          headerRowNewNames[colIdx] = colRenameMap.get(oldColName);
+        }
+      }
+
+      ret.push(headerRowNewNames.join(csvDelimiter) + "\n");
+      ret.push(headerRow.join(csvDelimiter) + "\n");
+
+    } else {
+      for (let colIdx=0; colIdx<headerRow.length; colIdx++) {
+        const oldColName = headerRow[colIdx];
+        if (colRenameMap.has(oldColName)) {
+          headerRow[colIdx] = colRenameMap.get(oldColName);
+        }
+      }
+      ret.push(headerRow.join(csvDelimiter) + "\n");
+    }
+  }
+
+  const stack = [tree.root];
+  const nodeRowCache = new WeakMap();
+
+  while (stack.length > 0) {
+    const treeNode = stack.pop(); 
+
+    // Variable row is an array where each index correponds to a column.
+    // We retrieve the cached row data for each visited inner node.
+    let row;
+    if (treeNode.parent === null) {
+      row = new Array(colMapping.size);
+    } else {
+      row = [...nodeRowCache.get(treeNode.parent)]; // copy array from cache
+    }
+    
+    // Fill row with column data
+    for (let [dataKey, nodeElement] of treeNode.data.entries()) {
+
+      if (nodeElement === null) continue; // we don't write nulls to the excel file!
+      if (!colMapping.has(dataKey)) continue; // skip if not in selected columns
+      if (removeEmptyCols && !nonEmptyCols.has(dataKey)) continue; // skip if the column is empty anyway
+
+      // data sanitization 
+      nodeElement = nodeElement.toString();
+      nodeElement = nodeElement.replace("\"", "\"\"");
+      nodeElement = nodeElement.trim();
+      if (nodeElement.includes(csvDelimiter)) nodeElement = `\"${nodeElement}\"`;
+
+      const colIdx = colMapping.get(dataKey);
+      row[colIdx] = nodeElement;
+    }
+
+    if (treeNode.isLeaf) {
+      const isEmptyRow = row.every((x) => x === undefined);
+      if (!isEmptyRow) {
+        const csvRow = row.join(csvDelimiter) + "\n";
+        ret.push(csvRow);
+      }
+    } else {
+      // Cache the row array that belongs to the tree node.
+      nodeRowCache.set(treeNode, row); 
+
+      for (const childNode of treeNode.children) {
+        stack.push(childNode);
+      }
+    }
+  }
+  return ret;
+}
+
+function parseCsvToColRename(csvRaw, skipHeader=true) {
+  /* Returns a mapping that maps the first column into the second column of a given csv. */
+  const rowDelim = /\r?\n/; // regex for line break
+  const colDelim = ";"
+
+  const ret = new Map();
+
+  const rows = csvRaw.split(rowDelim);
+
+  if (csvRaw.length === 0) return null;
+
+  for (const [rowIdx, rowStr] of rows.entries()) {
+
+    if (skipHeader && rowIdx === 0) continue;
+    if (rowStr.length === 0) continue;
+
+    // for each row: split column values while escaping delimiters in double quotes.
+    // would love to use the str.split() function, but relying only on regex
+    // is kind of undoable.
+    const splitIdxLi = [];
+    {
+      let quoteOpen = false; // quoteOpen === true if it has passed an uneven number of double quote chars.
+      for (let i=0; i < rowStr.length; i++) {
+        if (rowStr[i] === '\"') {
+          quoteOpen = !quoteOpen;
+        }
+        else if (rowStr[i] ===  '\\') {
+          i++; // skip character after backslash
+        }
+        else if (rowStr[i] === '\'') {
+          console.log("Single quotes detected in CSV file. Only double quotes are escaped...");
+        }
+        else if (rowStr[i] === colDelim) {
+          if (!quoteOpen) {
+            splitIdxLi.push(i);
+          }
+        }
+      }
+
+      if (quoteOpen) {
+        console.log(`Unclosed quote in CSV file in line ${rowIdx}: ${rowStr}`);
+      }
+    }
+
+    // Split rowStr into columns, where col1 = ret.key and col2 = ret.value
+    if (splitIdxLi.length === 0) {
+      console.log("Row found with fewer than two columns. Skipping row...");
+    } else {
+      if (splitIdxLi.length > 1) console.log("Row found with more than two columns. Skipping columns other than col1 and col2.");
+
+      const rowCol2IdxEnd = (splitIdxLi === 1) ? rowStr.length - 1 : splitIdxLi[1];  
+
+      let rowCol1 = rowStr.slice(0, splitIdxLi[0]);
+      let rowCol2 = rowStr.slice(splitIdxLi[0]+1, rowCol2IdxEnd);
+
+      // trim double quotes
+      if (rowCol1.startsWith('\"') && rowCol1.endsWith('\"')) rowCol1 = rowCol1.slice(1, rowCol1.length-1);
+      if (rowCol2.startsWith('\"') && rowCol2.endsWith('\"')) rowCol2 = rowCol2.slice(1, rowCol2.length-1);
+
+      ret.set(rowCol1, rowCol2); // by default, set first column as key and second column as value of the mapping
+    }
+  }
+  return ret;
+}
+
+
+function Tree() {
+  this.root  = null;
+  this.nodes = [];
+}
+
+function Node() {
+  this.parent = null;
+  this.name   = null;
+  this.isLeaf = true;
+  this.children = [];
+  this.data = new Map(); // data is filled as we traverse through the original json tree
+}
+
+function addNode(tree, parentNode=null) {
+  const newNode = new Node();
+
+  if (tree.nodes.length === 0) {
+    console.assert(parentNode === null);
+    tree.root = newNode;
+  } else {
+    console.assert(parentNode !== null);
+    
+    newNode.parent = parentNode;
+
+    parentNode.children.push(newNode);
+    parentNode.isLeaf = false;
+  }
+
+  tree.nodes.push(newNode);
+  return newNode;
+}
+</script>
+
+<style>
+  h1 {
+    color: rgb(39, 29, 108);
+    font-size: 24pt;
+    margin: 0px;
+    padding: 0pt 0pt 24pt 0pt;
+  }
+
+  h2 {
+    color: rgb(9, 29, 35);
+    font-size: 16pt;
+    margin: 0pt 0pt 24pt 0pt;
+  }
+  
+  h3 {
+    font-size: 14pt;
+    margin: 0pt 0pt 12pt 0pt;
+  }
+
+  h4 {
+    font-size: 12pt;
+    margin: 0pt 0pt 6pt 0pt;
+  }
+
+  
+  body {
+    font-family: helvetica, arial, sans-serif;
+    background-color: rgb(233, 233, 233);
+    color: rgb(9, 29, 35);
+    font-size: 12pt;
+  }
+
+  button, input::file-selector-button {
+    border-color: rgb(0, 161, 205);
+    background-color: rgb(5, 128, 161);
+    color: rgb(255, 255, 255);
+    padding: 8pt 12pt;
+  }
+
+  button {
+    border-color: rgb(0, 161, 205);
+    background-color: rgb(5, 128, 161);
+    color: rgb(255, 255, 255);
+    margin-right: 12pt;
+    padding: 8pt 12pt;
+  }
+
+  ul {
+    list-style: none;
+    padding-left: 24pt;
+    margin: 0pt;
+  }
+
+  td {
+    padding-right: 12pt;
+  }
+
+  hr {
+    width: 256pt;
+    text-align: left;
+    margin: 6pt 0pt 6pt 0pt;
+  }
+
+  /* Classes */
+  .btnSecondary {
+    background-color: rgb(189, 188, 188);
+    border-color: rgb(233, 233, 233);
+    color: rgb(9, 29, 35);
+  }
+
+  .btnSmall {
+    padding: 4pt 4pt;
+    margin-bottom: 12pt;
+  }
+
+  .txtLight {
+    color: rgb(135, 135, 135);
+  }
+
+  .divContentFull {
+    margin-bottom: 24pt;
+  }
+  
+  .divContentInline {
+    display: inline-block;
+    margin-right: 36pt;
+    vertical-align: top;
+  }
+
+  .tableCol {
+    margin-left: 24pt;
+  }
+
+  .itemSpace {
+    margin-bottom: 6pt;
+    display: block;
+  }
+
+  /* Ids */
+  #content {
+    background-color: rgb(255, 255, 255);
+
+    margin-left : 10%;
+    margin-right: 10%;
+
+    padding: 24pt;
+  }
+
+  #ulColumns {
+    padding-left: 0px;
+    margin-bottom: 12pt;
+  }
+
+  #divErrorMsg {
+    background-color: rgb(229, 95, 91);
+    color: white;
+    padding: 12pt;
+    margin-bottom: 12pt;
+  }
+
+</style>
