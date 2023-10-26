@@ -229,7 +229,7 @@ function viewDrawColCheckboxes(treeNodes, nonEmptyCols, colRename, clearExisting
         nodeColsNonEmpty.push(col);
       } else {
         // layout of the column names when empty
-        colOld.innerText += " (empty)";
+        colOld.innerHTML += " (empty)";
         colOld.classList.add("txtLight");
         nodeColsEmpty.push(col);
       }
@@ -306,7 +306,10 @@ function viewGenerateCsv() {
   } else {
     divErrorMsg.hidden = true;
 
-    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, colRenameMap);
+    const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
+    const removeEmptyCols = checkboxRemoveEmptyColumns.checked;
+
+    const csvLines = jsonToTabular(prunedTree, selectedCols, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols);
     saveCsvBlob(csvLines, inputFilename);
   }
 }
@@ -473,7 +476,7 @@ function treeBuild(jsonTree) {
   return tree;
 }
 
-function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
+function jsonToTabular(tree, selectedNodes, nonEmptyCols, csvDelimiter, colRenameMap, removeEmptyCols) {
   /* Given a simplified tree from treeBuild, we traverse the tree from the root to the leaves.
   We write a line in the resulting csv-file for each unique path from root to leaf. 
   Since the paths to the leaves often share inner nodes, we cache the row data for each
@@ -481,7 +484,6 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
 
   const ret = [];
 
-  const checkboxRemoveEmptyColumns = document.getElementById("checkboxRemoveEmptyCols");
 
   // colMapping is a hash map for each column 
   // to its index in the resulting csv-file.
@@ -495,7 +497,7 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
 
       for (const colName of node.data.keys()) { 
         // addEmptyColumn is only false if checked=true and col is empty.
-        const addEmptyColumn = (!checkboxRemoveEmptyColumns.checked) || nonEmptyCols.has(colName); 
+        const addEmptyColumn = (!removeEmptyCols) || nonEmptyCols.has(colName); 
 
         if (addEmptyColumn && !colMapping.has(colName)) {
           colMapping.set(colName, colIdx); 
@@ -538,7 +540,7 @@ function jsonToTabular(tree, selectedNodes, nonEmptyCols, colRenameMap) {
 
       if (nodeElement === null) continue; // we don't write nulls to the excel file!
       if (!colMapping.has(dataKey)) continue; // skip if not in selected columns
-      if (checkboxRemoveEmptyColumns.checked && !nonEmptyCols.has(dataKey)) continue; // skip if the column is empty anyway
+      if (removeEmptyCols && !nonEmptyCols.has(dataKey)) continue; // skip if the column is empty anyway
 
       // data sanitization 
       nodeElement = nodeElement.toString();
